@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Denní Plánovač</title>
-    <!-- manifest.json pro PWA přidáme později -->
     
     <style>
         :root {
@@ -21,8 +20,8 @@
         body {
             background-color: var(--bg-color);
             color: var(--text-dark);
-            overscroll-behavior-y: none; /* Zabrání pull-to-refresh na mobilech */
-            padding-bottom: 70px; /* Místo pro spodní navigaci */
+            overscroll-behavior-y: none;
+            padding-bottom: 70px;
         }
 
         /* --- ZÁLOŽKY DNŮ --- */
@@ -58,7 +57,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            overflow-x: hidden; /* Důležité pro swipe gesta */
+            overflow-x: hidden;
         }
         .task-card {
             background: var(--card-bg);
@@ -71,8 +70,9 @@
             align-items: center;
             justify-content: space-between;
             transition: transform 0.2s, background-color 0.3s;
-            touch-action: pan-y; /* Povolí scrollování, ale blokuje nativní swipe zpět v prohlížeči */
+            touch-action: pan-y;
             user-select: none;
+            cursor: pointer;
         }
         .task-card.completed {
             background-color: var(--success);
@@ -143,40 +143,22 @@
 </head>
 <body>
 
-    <!-- Horizontální záložky dnů -->
     <nav class="days-nav" id="daysNav">
-        <a href="#" class="day-tab">Po</a>
-        <a href="#" class="day-tab">Út</a>
-        <a href="#" class="day-tab active">St</a> <!-- Dnes -->
-        <a href="#" class="day-tab">Čt</a>
-        <a href="#" class="day-tab">Pá</a>
-        <a href="#" class="day-tab">So</a>
-        <a href="#" class="day-tab">Ne</a>
-    </nav>
+        </nav>
 
-    <!-- Hlavní obsah pro daný den -->
     <main class="task-container" id="taskContainer">
-        <!-- Zde se budou renderovat úkoly z Firebase -->
-        <div class="task-card completed" data-id="1">
-            Vyluxovat 🧹
-        </div>
-        <div class="task-card" data-id="2">
-            Auto do servisu 🚗
-        </div>
-    </main>
+        </main>
 
     <div class="add-btn-container">
         <button class="add-btn" id="openAddDialogBtn">+ Přidat úkol</button>
     </div>
 
-    <!-- Spodní fixní navigace -->
     <nav class="bottom-nav">
         <a href="#" class="nav-item active"><span>📅</span> Plán</a>
         <a href="#" class="nav-item"><span>📈</span> Historie</a>
         <a href="#" class="nav-item"><span>⚙️</span> Nastavení</a>
     </nav>
 
-    <!-- Dialog pro přidání úkolu -->
     <dialog id="addTaskDialog">
         <div class="dialog-content">
             <h3 style="color: var(--primary)">Nový úkol</h3>
@@ -188,13 +170,176 @@
         </div>
     </dialog>
 
-    <!-- Firebase Modulární Importy (Připraveno) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
-        
-        // Zde přijde konfigurace a hlavní logika
-    </script>
+    <dialog id="moveTaskDialog">
+        <div class="dialog-content">
+            <h3 style="color: var(--primary)">Přesunout na jiný den</h3>
+            <div id="moveDaysGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
+                </div>
+            <div class="dialog-actions">
+                <button class="btn btn-text" id="closeMoveDialogBtn">Zrušit</button>
+            </div>
+        </div>
+    </dialog>
 
-</body>
-</html>
+    <script type="module">
+        // 1. IMPORTY Z FIREBASE CDN (Upraveno pro Vanilla JS)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        
+        // 2. TVOJE FIREBASE KONFIGURACE
+        const firebaseConfig = {
+            apiKey: "AIzaSyDIrjTWwYJbKLH98skULApKB1LpdKSwlYw",
+            authDomain: "denni-planovac-4ecc1.firebaseapp.com",
+            projectId: "denni-planovac-4ecc1",
+            storageBucket: "denni-planovac-4ecc1.firebasestorage.app",
+            messagingSenderId: "657926933778",
+            appId: "1:657926933778:web:26bff4d2124ad3c36a37cb"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 3. STAV APLIKACE A POMOCNÉ FUNKCE
+        let currentDate = new Date().toISOString().split('T')[0];
+        let selectedTaskIdForMove = null;
+
+        function getWeekTimecode() {
+            const d = new Date();
+            d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+            const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+            const weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
+            return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
+        }
+
+        function getTomorrowDate() {
+            const tmrw = new Date(currentDate);
+            tmrw.setDate(tmrw.getDate() + 1);
+            return tmrw.toISOString().split('T')[0];
+        }
+
+        // 4. UI ELEMENTY
+        const taskContainer = document.getElementById('taskContainer');
+        const addTaskDialog = document.getElementById('addTaskDialog');
+        const newTaskInput = document.getElementById('newTaskInput');
+        const moveTaskDialog = document.getElementById('moveTaskDialog');
+
+        // 5. NAČÍTÁNÍ DAT (Real-time z Firebase)
+        function loadTasksForDate(dateStr) {
+            const q = query(collection(db, "tasks"), where("assignedDate", "==", dateStr));
+            
+            onSnapshot(q, (snapshot) => {
+                taskContainer.innerHTML = '';
+                
+                if (snapshot.empty) {
+                    taskContainer.innerHTML = '<div style="text-align:center; color:#999; margin-top:20px;">Žádné úkoly na tento den.</div>';
+                    return;
+                }
+
+                snapshot.forEach((docSnap) => {
+                    createTaskElement(docSnap.id, docSnap.data());
+                });
+            });
+        }
+
+        // 6. RENDEROVÁNÍ ÚKOLU A GESTA
+        function createTaskElement(id, task) {
+            const el = document.createElement('div');
+            el.className = `task-card ${task.completedTimecode ? 'completed' : ''}`;
+            el.innerHTML = task.text;
+            
+            let startX = 0, currentX = 0, isDragging = false, longPressTimer;
+
+            el.addEventListener('pointerdown', (e) => {
+                startX = e.clientX;
+                isDragging = true;
+                el.style.transition = 'none';
+
+                longPressTimer = setTimeout(() => {
+                    if(isDragging) {
+                        isDragging = false;
+                        el.style.transform = '';
+                        if (navigator.vibrate) navigator.vibrate(50);
+                        openMoveDialog(id);
+                    }
+                }, 500);
+            });
+
+            el.addEventListener('pointermove', (e) => {
+                if (!isDragging) return;
+                currentX = e.clientX - startX;
+
+                if (Math.abs(currentX) > 10) clearTimeout(longPressTimer);
+
+                if (currentX > 0) {
+                    el.style.transform = `translateX(${currentX}px)`;
+                    el.style.opacity = 1 - (currentX / 300);
+                }
+            });
+
+            el.addEventListener('pointerup', async (e) => {
+                if (!isDragging) return;
+                clearTimeout(longPressTimer);
+                isDragging = false;
+                el.style.transition = 'transform 0.3s, opacity 0.3s';
+
+                if (currentX > 120) {
+                    el.style.transform = `translateX(100vw)`;
+                    await updateDoc(doc(db, "tasks", id), { assignedDate: getTomorrowDate() });
+                } else {
+                    el.style.transform = 'translateX(0)';
+                    el.style.opacity = 1;
+                    
+                    if (currentX < 10) {
+                        const newTimecode = task.completedTimecode ? null : getWeekTimecode();
+                        await updateDoc(doc(db, "tasks", id), { completedTimecode: newTimecode });
+                    }
+                }
+                currentX = 0;
+            });
+
+            el.addEventListener('pointerleave', () => {
+                if (isDragging) {
+                    clearTimeout(longPressTimer);
+                    isDragging = false;
+                    el.style.transition = 'transform 0.3s';
+                    el.style.transform = 'translateX(0)';
+                    el.style.opacity = 1;
+                }
+            });
+
+            taskContainer.appendChild(el);
+        }
+
+        // 7. OBSLUHA DIALOGŮ
+        document.getElementById('openAddDialogBtn').onclick = () => addTaskDialog.showModal();
+        document.getElementById('closeAddDialogBtn').onclick = () => {
+            addTaskDialog.close();
+            newTaskInput.value = '';
+        };
+        
+        document.getElementById('saveTaskBtn').onclick = async () => {
+            const text = newTaskInput.value.trim();
+            if (text) {
+                await addDoc(collection(db, "tasks"), {
+                    text: text,
+                    assignedDate: currentDate,
+                    completedTimecode: null,
+                    createdAt: Date.now()
+                });
+                addTaskDialog.close();
+                newTaskInput.value = '';
+            }
+        };
+
+        function openMoveDialog(taskId) {
+            selectedTaskIdForMove = taskId;
+            const grid = document.getElementById('moveDaysGrid');
+            grid.innerHTML = '';
+            
+            for (let i = 0; i < 6; i++) {
+                const targetDate = new Date();
+                targetDate.setDate(targetDate.getDate() + i);
+                const dateStr = targetDate.toISOString().split('T')[0];
+                const dayName = targetDate.toLocaleDateString('cs-CZ', { weekday: 'short' });
+
+                const btn = document.createElement('button');
