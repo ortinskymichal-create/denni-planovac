@@ -1,22 +1,12 @@
-const CACHE_NAME = 'planovac-v1';
-const ASSETS = [
-    './',
-    './index.html',
-    './manifest.json'
-];
-
-// Instalace a uložení do paměti
 self.addEventListener('install', (e) => {
-    e.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
-    );
+    // Toto donutí prohlížeč okamžitě aktivovat novou verzi a zapomenout starou
+    self.skipWaiting(); 
 });
 
-// Zajištění chodu i bez internetu
+self.addEventListener('activate', (e) => {
+    e.waitUntil(clients.claim());
+});
+
 self.addEventListener('fetch', (e) => {
-    e.respondWith(
-        caches.match(e.request).then((response) => {
-            return response || fetch(e.request);
-        })
-    );
+    // Prohlížeč vyžaduje fetch event, i když je prázdný.
 });
