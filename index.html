@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Denní Plánovač</title>
+    <!-- manifest.json pro PWA přidáme později -->
+    
+    <style>
+        :root {
+            --primary: #2980b9;
+            --success: #27ae60;
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-dark: #333333;
+            --shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Helvetica, sans-serif; }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-dark);
+            overscroll-behavior-y: none; /* Zabrání pull-to-refresh na mobilech */
+            padding-bottom: 70px; /* Místo pro spodní navigaci */
+        }
+
+        /* --- ZÁLOŽKY DNŮ --- */
+        .days-nav {
+            display: flex;
+            overflow-x: auto;
+            background: var(--card-bg);
+            padding: 15px 10px;
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .day-tab {
+            flex: 0 0 auto;
+            padding: 8px 16px;
+            margin-right: 10px;
+            border-radius: 20px;
+            background: #eee;
+            color: #666;
+            font-weight: bold;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .day-tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* --- SEZNAM ÚKOLŮ --- */
+        .task-container {
+            padding: 20px 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-x: hidden; /* Důležité pro swipe gesta */
+        }
+        .task-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 18px;
+            box-shadow: var(--shadow);
+            font-weight: 600;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: transform 0.2s, background-color 0.3s;
+            touch-action: pan-y; /* Povolí scrollování, ale blokuje nativní swipe zpět v prohlížeči */
+            user-select: none;
+        }
+        .task-card.completed {
+            background-color: var(--success);
+            color: white;
+            box-shadow: none;
+        }
+
+        /* --- TLAČÍTKO PŘIDAT --- */
+        .add-btn-container {
+            padding: 0 15px;
+            margin-bottom: 20px;
+        }
+        .add-btn {
+            width: 100%;
+            padding: 15px;
+            border: 2px dashed var(--primary);
+            background: transparent;
+            color: var(--primary);
+            border-radius: 12px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* --- DIALOGY (<dialog>) --- */
+        dialog {
+            margin: auto;
+            border: none;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            width: 90%;
+            max-width: 400px;
+        }
+        dialog::backdrop { background: rgba(0,0,0,0.5); }
+        .dialog-content input {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        .dialog-actions {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-text { background: transparent; color: #666; }
+
+        /* --- SPODNÍ NAVIGACE --- */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: var(--card-bg);
+            display: flex;
+            justify-content: space-around;
+            padding: 15px 0;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+            z-index: 100;
+        }
+        .nav-item { color: #888; text-decoration: none; font-size: 0.9rem; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .nav-item.active { color: var(--primary); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <!-- Horizontální záložky dnů -->
+    <nav class="days-nav" id="daysNav">
+        <a href="#" class="day-tab">Po</a>
+        <a href="#" class="day-tab">Út</a>
+        <a href="#" class="day-tab active">St</a> <!-- Dnes -->
+        <a href="#" class="day-tab">Čt</a>
+        <a href="#" class="day-tab">Pá</a>
+        <a href="#" class="day-tab">So</a>
+        <a href="#" class="day-tab">Ne</a>
+    </nav>
+
+    <!-- Hlavní obsah pro daný den -->
+    <main class="task-container" id="taskContainer">
+        <!-- Zde se budou renderovat úkoly z Firebase -->
+        <div class="task-card completed" data-id="1">
+            Vyluxovat 🧹
+        </div>
+        <div class="task-card" data-id="2">
+            Auto do servisu 🚗
+        </div>
+    </main>
+
+    <div class="add-btn-container">
+        <button class="add-btn" id="openAddDialogBtn">+ Přidat úkol</button>
+    </div>
+
+    <!-- Spodní fixní navigace -->
+    <nav class="bottom-nav">
+        <a href="#" class="nav-item active"><span>📅</span> Plán</a>
+        <a href="#" class="nav-item"><span>📈</span> Historie</a>
+        <a href="#" class="nav-item"><span>⚙️</span> Nastavení</a>
+    </nav>
+
+    <!-- Dialog pro přidání úkolu -->
+    <dialog id="addTaskDialog">
+        <div class="dialog-content">
+            <h3 style="color: var(--primary)">Nový úkol</h3>
+            <input type="text" id="newTaskInput" placeholder="např. Vynést odpadky 🗑️" autocomplete="off">
+            <div class="dialog-actions">
+                <button class="btn btn-text" id="closeAddDialogBtn">Zrušit</button>
+                <button class="btn btn-primary" id="saveTaskBtn">Uložit</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Firebase Modulární Importy (Připraveno) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        
+        // Zde přijde konfigurace a hlavní logika
+    </script>
+
+</body>
+</html>
