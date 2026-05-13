@@ -7,7 +7,6 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2980b9">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     
     <style>
         :root {
@@ -16,7 +15,8 @@
             --bg-color: #f4f7f6;
             --card-bg: #ffffff;
             --text-dark: #333333;
-            --shadow: 0 4px 10px rgba(0,0,0,0.1);
+            --shadow: 0 4px 10px rgba(0,0,0,0.08);
+            --dot-color: #e74c3c;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, sans-serif; }
@@ -24,9 +24,13 @@
         body {
             background-color: var(--bg-color);
             color: var(--text-dark);
-            overscroll-behavior-y: none; /* Zabrání nechtěnému obnovení stránky tahem dolů */
+            overscroll-behavior-y: none;
             padding-bottom: 80px;
         }
+
+        /* --- SYSTÉM POHLEDŮ (VIEWS) --- */
+        .view { display: none; }
+        .view.active { display: block; }
 
         /* --- HORIZONTÁLNÍ NAVIGACE DNŮ --- */
         .days-nav {
@@ -39,146 +43,114 @@
             top: 0;
             z-index: 10;
             scrollbar-width: none;
+            align-items: center;
         }
         .days-nav::-webkit-scrollbar { display: none; }
 
         .day-tab {
             flex: 0 0 auto;
-            padding: 10px 20px;
+            padding: 10px 18px;
             margin-right: 10px;
-            border-radius: 25px;
+            border-radius: 20px;
             background: #eee;
             color: #666;
             font-weight: bold;
             text-decoration: none;
             text-align: center;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .day-tab.active {
-            background: var(--primary);
-            color: white;
-            transform: scale(1.05);
-        }
-
-        /* --- KONTEJNER ÚKOLŮ --- */
-        .task-container {
-            padding: 20px 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            overflow-x: hidden; /* Nutné pro efekt odhození úkolu */
-        }
-
-        /* --- KARTA ÚKOLU --- */
-        .task-card {
-            background: var(--card-bg);
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: var(--shadow);
-            font-weight: 600;
-            font-size: 1.1rem;
-            display: flex;
-            align-items: center;
-            transition: transform 0.1s linear, background-color 0.4s ease, opacity 0.3s;
-            touch-action: pan-y; /* Povolí vertikální scrollování, ale blokuje horizontální systémová gesta */
-            user-select: none;
-            cursor: pointer;
+            transition: all 0.2s;
             position: relative;
         }
+        .day-tab.active { background: var(--primary); color: white; transform: scale(1.05); }
+        .day-tab.today { border: 2px solid var(--primary); }
+        .day-tab.today.active { border-color: white; }
+        
+        .icon-btn { font-size: 1.5rem; background: transparent; border: none; padding: 0 10px; cursor: pointer; color: var(--primary); }
 
-        .task-card.completed {
-            background-color: var(--success);
-            color: white;
-            box-shadow: none;
+        /* --- KONTEJNER ÚKOLŮ A KARTY --- */
+        .task-container { padding: 20px 15px; display: flex; flex-direction: column; gap: 15px; overflow-x: hidden; }
+        .task-card {
+            background: var(--card-bg); border-radius: 15px; padding: 20px;
+            box-shadow: var(--shadow); font-weight: 600; font-size: 1.1rem;
+            display: flex; align-items: center; justify-content: space-between;
+            transition: transform 0.1s linear, background-color 0.4s ease, opacity 0.3s;
+            touch-action: pan-y; user-select: none; cursor: pointer; position: relative;
         }
+        .task-card.completed { background-color: var(--success); color: white; box-shadow: none; }
 
         /* --- TLAČÍTKO PŘIDAT --- */
-        .add-btn-container {
-            padding: 0 15px;
-            margin-top: 10px;
-        }
-        .add-btn {
-            width: 100%;
-            padding: 18px;
-            border: 2px dashed var(--primary);
-            background: transparent;
-            color: var(--primary);
-            border-radius: 15px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        /* --- DIALOGY (Popup okna) --- */
-        dialog {
-            margin: auto;
-            border: none;
-            border-radius: 20px;
-            padding: 25px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
-            width: 90%;
-            max-width: 450px;
-        }
-        dialog::backdrop { background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); }
-        
-        .dialog-content input {
-            width: 100%;
-            padding: 15px;
-            margin: 15px 0;
-            border: 2px solid #eee;
-            border-radius: 10px;
-            font-size: 1.1rem;
-            outline: none;
-        }
-        .dialog-content input:focus { border-color: var(--primary); }
-
-        .dialog-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-        }
-        .btn { padding: 12px 25px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 1rem; }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-text { background: transparent; color: #888; }
+        .add-btn-container { padding: 0 15px; margin-top: 10px; }
+        .add-btn { width: 100%; padding: 15px; border: 2px dashed var(--primary); background: transparent; color: var(--primary); border-radius: 15px; font-size: 1.2rem; font-weight: bold; cursor: pointer; }
 
         /* --- SPODNÍ NAVIGACE --- */
         .bottom-nav {
-            position: fixed;
-            bottom: 0; left: 0; right: 0;
-            background: var(--card-bg);
-            display: flex;
-            justify-content: space-around;
-            padding: 15px 0;
-            box-shadow: 0 -3px 15px rgba(0,0,0,0.08);
-            z-index: 100;
+            position: fixed; bottom: 0; left: 0; right: 0; background: var(--card-bg);
+            display: flex; justify-content: space-around; padding: 15px 0;
+            box-shadow: 0 -3px 15px rgba(0,0,0,0.08); z-index: 100;
         }
         .nav-item { color: #aaa; text-decoration: none; font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 5px; }
         .nav-item.active { color: var(--primary); font-weight: bold; }
         .nav-item span { font-size: 1.5rem; }
 
-        /* Mřížka pro přesun úkolu */
-        .days-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; }
+        /* --- KALENDÁŘ --- */
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; padding: 15px; font-size: 1.2rem; font-weight: bold; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; padding: 10px; text-align: center; }
+        .cal-day-name { font-weight: bold; color: #888; font-size: 0.9rem; padding-bottom: 10px; }
+        .cal-day { padding: 15px 0; border-radius: 10px; font-weight: bold; position: relative; cursor: pointer; background: var(--card-bg); }
+        .cal-day.empty { background: transparent; cursor: default; }
+        .cal-day.today { border: 2px solid var(--primary); color: var(--primary); }
+        .cal-day.selected { background: var(--primary); color: white; }
+        .task-dot { height: 6px; width: 6px; background-color: var(--dot-color); border-radius: 50%; position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); }
+
+        /* --- AGENDA (Seznam úkolů) --- */
+        .agenda-day-header { font-size: 1.1rem; font-weight: bold; color: var(--primary); margin: 20px 15px 10px 15px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+
+        /* --- DIALOGY --- */
+        dialog { margin: auto; border: none; border-radius: 20px; padding: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); width: 95%; max-width: 450px; }
+        dialog::backdrop { background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); }
+        .dialog-content input { width: 100%; padding: 15px; margin: 15px 0; border: 2px solid #eee; border-radius: 10px; font-size: 1.1rem; outline: none; }
+        .dialog-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 15px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-text { background: transparent; color: #888; }
     </style>
 </head>
 <body>
 
-    <nav class="days-nav" id="daysNav"></nav>
-
-    <main class="task-container" id="taskContainer"></main>
-
-    <div class="add-btn-container">
-        <button class="add-btn" id="openAddDialogBtn">+ Přidat úkol</button>
+    <!-- POHLED 1: DENNÍ PŘEHLED -->
+    <div id="view-plan" class="view active">
+        <nav class="days-nav" id="daysNav"></nav>
+        <main class="task-container" id="taskContainer"></main>
+        <div class="add-btn-container">
+            <button class="add-btn" id="openAddDialogBtn">+ Přidat úkol</button>
+        </div>
     </div>
 
+    <!-- POHLED 2: MĚSÍČNÍ KALENDÁŘ -->
+    <div id="view-calendar" class="view">
+        <div class="calendar-header">
+            <button class="icon-btn" id="calPrevMonth">◀</button>
+            <span id="calMonthYear">Leden 2026</span>
+            <button class="icon-btn" id="calNextMonth">▶</button>
+        </div>
+        <div class="calendar-grid" id="mainCalendarGrid"></div>
+    </div>
+
+    <!-- POHLED 3: VŠECHNY ÚKOLY (AGENDA) -->
+    <div id="view-tasks" class="view">
+        <div id="agendaContainer" style="padding-bottom: 20px;"></div>
+    </div>
+
+    <!-- SPODNÍ MENU -->
     <nav class="bottom-nav">
-        <a href="#" class="nav-item active"><span>📅</span>Plán</a>
-        <a href="#" class="nav-item"><span>📈</span>Historie</a>
-        <a href="#" class="nav-item"><span>⚙️</span>Nastavení</a>
+        <a href="#" class="nav-item active" data-target="view-plan"><span>📅</span>Přehled</a>
+        <a href="#" class="nav-item" data-target="view-calendar"><span>📆</span>Kalendář</a>
+        <a href="#" class="nav-item" data-target="view-tasks"><span>📋</span>Úkoly</a>
     </nav>
 
+    <!-- DIALOG: PŘIDAT ÚKOL -->
     <dialog id="addTaskDialog">
         <div class="dialog-content">
-            <h2 style="color: var(--primary)">Co tě čeká?</h2>
+            <h2 style="color: var(--primary)">Nový úkol</h2>
             <input type="text" id="newTaskInput" placeholder="např. Vyluxovat 🧹" autocomplete="off">
             <div class="dialog-actions">
                 <button class="btn btn-text" id="closeAddDialogBtn">Zrušit</button>
@@ -187,22 +159,26 @@
         </div>
     </dialog>
 
+    <!-- DIALOG: PŘESUN (LONG PRESS) -->
     <dialog id="moveTaskDialog">
-        <div class="dialog-content">
-            <h2 style="color: var(--primary)">Kam s ním?</h2>
-            <div id="moveDaysGrid" class="days-grid"></div>
-            <div class="dialog-actions" style="margin-top: 20px;">
+        <div class="dialog-content" style="padding: 10px;">
+            <h3 style="text-align:center; color: var(--primary); margin-bottom: 10px;">Přesunout na:</h3>
+            <div class="calendar-header" style="padding: 5px;">
+                <button class="icon-btn" id="movePrevMonth">◀</button>
+                <span id="moveMonthYear" style="font-size: 1rem;"></span>
+                <button class="icon-btn" id="moveNextMonth">▶</button>
+            </div>
+            <div class="calendar-grid" id="moveCalendarGrid" style="gap: 2px;"></div>
+            <div class="dialog-actions">
                 <button class="btn btn-text" id="closeMoveDialogBtn">Zrušit</button>
             </div>
         </div>
     </dialog>
 
     <script type="module">
-        // 1. FIREBASE IMPORTY
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
         
-        // 2. TVOJE KONFIGURACE (Již vyplněná)
         const firebaseConfig = {
             apiKey: "AIzaSyDIrjTWwYJbKLH98skULApKB1LpdKSwlYw",
             authDomain: "denni-planovac-4ecc1.firebaseapp.com",
@@ -215,182 +191,276 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 3. STAV APLIKACE
-        let currentDate = new Date().toISOString().split('T')[0]; // Dnes ve formátu YYYY-MM-DD
+        // --- STAV APLIKACE ---
+        let allTasks = []; // Cache všech úkolů z Firebase
+        const realTodayStr = new Date().toISOString().split('T')[0];
+        let currentDate = realTodayStr; 
+        
         let selectedTaskIdForMove = null;
+        let mainCalDate = new Date(); // Pro hlavní kalendář
+        let moveCalDate = new Date(); // Pro dialog přesunu
 
-        // Pomocná funkce pro časový kód (např. 2026-W19)
+        // --- POMOCNÉ FUNKCE ---
         function getWeekTimecode() {
-            const d = new Date();
-            d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+            const d = new Date(); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
             const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
             const weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
             return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
         }
+        
+        function formatCzechDate(dateStr) {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long' });
+        }
 
-        // 4. RENDEROVÁNÍ DNŮ (HORNÍ LIŠTA)
+        function switchView(viewId) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelector(`.nav-item[data-target="${viewId}"]`).classList.add('active');
+        }
+
+        // --- NAČÍTÁNÍ DAT Z FIREBASE ---
+        onSnapshot(collection(db, "tasks"), (snapshot) => {
+            allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderAll(); // Po každé změně překreslíme vše (rychlé a spolehlivé)
+        });
+
+        function renderAll() {
+            renderDaysNav();
+            renderDailyPlan();
+            renderCalendar(mainCalDate, 'mainCalendarGrid', 'calMonthYear', (d) => {
+                currentDate = d;
+                switchView('view-plan');
+                renderAll();
+            });
+            if(document.getElementById('moveTaskDialog').open) {
+                renderCalendar(moveCalDate, 'moveCalendarGrid', 'moveMonthYear', async (d) => {
+                    await updateDoc(doc(db, "tasks", selectedTaskIdForMove), { assignedDate: d });
+                    document.getElementById('moveTaskDialog').close();
+                });
+            }
+            renderAgenda();
+        }
+
+        // --- 1. HORIZONTÁLNÍ NAVIGACE (7 dnů zpět, 7 dopředu) ---
         function renderDaysNav() {
             const nav = document.getElementById('daysNav');
             nav.innerHTML = '';
-            const today = new Date();
             
-            // Ukážeme 2 dny zpět a 5 dní dopředu
-            for (let i = -2; i <= 5; i++) {
-                const d = new Date(today);
-                d.setDate(today.getDate() + i);
+            // Levé tlačítko kalendáře
+            const btnLeft = document.createElement('button');
+            btnLeft.className = 'icon-btn'; btnLeft.innerText = '📅';
+            btnLeft.onclick = () => switchView('view-calendar');
+            nav.appendChild(btnLeft);
+
+            const centerDate = new Date(currentDate);
+            for (let i = -7; i <= 7; i++) {
+                const d = new Date(centerDate);
+                d.setDate(centerDate.getDate() + i);
                 const dateStr = d.toISOString().split('T')[0];
                 const dayName = d.toLocaleDateString('cs-CZ', { weekday: 'short' });
-                const dayNum = d.getDate();
-
+                
                 const a = document.createElement('a');
                 a.href = "#";
-                a.className = `day-tab ${dateStr === currentDate ? 'active' : ''}`;
-                a.innerHTML = `<div>${dayName}</div><div style="font-size:1.2rem">${dayNum}</div>`;
+                a.className = `day-tab ${dateStr === currentDate ? 'active' : ''} ${dateStr === realTodayStr ? 'today' : ''}`;
+                a.innerHTML = `<div>${dayName}</div><div style="font-size:1.2rem">${d.getDate()}</div>`;
                 
-                a.onclick = (e) => {
-                    e.preventDefault();
-                    currentDate = dateStr;
-                    renderDaysNav();
-                    loadTasksForDate(currentDate);
-                };
+                // Přidání tečky k datu v navigaci, pokud tam je úkol
+                if(allTasks.some(t => t.assignedDate === dateStr)) {
+                    a.innerHTML += `<div class="task-dot" style="bottom: 2px;"></div>`;
+                }
+
+                a.onclick = (e) => { e.preventDefault(); currentDate = dateStr; renderAll(); };
                 nav.appendChild(a);
             }
+
+            // Pravé tlačítko kalendáře
+            const btnRight = document.createElement('button');
+            btnRight.className = 'icon-btn'; btnRight.innerText = '📅';
+            btnRight.onclick = () => switchView('view-calendar');
+            nav.appendChild(btnRight);
         }
 
-        // 5. NAČÍTÁNÍ ÚKOLŮ
-        function loadTasksForDate(dateStr) {
-            const taskContainer = document.getElementById('taskContainer');
-            const q = query(collection(db, "tasks"), where("assignedDate", "==", dateStr));
+        // --- 2. DENNÍ PŘEHLED (ÚKOLY) ---
+        function renderDailyPlan() {
+            const container = document.getElementById('taskContainer');
+            container.innerHTML = '';
+            const dayTasks = allTasks.filter(t => t.assignedDate === currentDate);
             
-            onSnapshot(q, (snapshot) => {
-                taskContainer.innerHTML = '';
-                if (snapshot.empty) {
-                    taskContainer.innerHTML = '<div style="text-align:center; color:#999; margin-top:40px;">Na tento den nemáš žádné plány. ✨</div>';
-                    return;
-                }
-                snapshot.forEach((docSnap) => {
-                    renderTaskCard(docSnap.id, docSnap.data());
-                });
-            });
+            if (dayTasks.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:#999; margin-top:40px;">Volný den. ✨</div>';
+                return;
+            }
+            dayTasks.forEach(task => renderTaskCard(task, container));
         }
 
-        // 6. KARTA ÚKOLU + GESTA
-        function renderTaskCard(id, task) {
+        function renderTaskCard(task, container) {
             const el = document.createElement('div');
             el.className = `task-card ${task.completedTimecode ? 'completed' : ''}`;
             el.innerText = task.text;
 
             let startX = 0, currentX = 0, isDragging = false, longPressTimer;
 
-            // Dotyk začíná
             el.addEventListener('pointerdown', (e) => {
-                startX = e.clientX;
-                isDragging = true;
-                el.style.transition = 'none';
-
+                startX = e.clientX; isDragging = true; el.style.transition = 'none';
                 longPressTimer = setTimeout(() => {
                     if(isDragging && Math.abs(currentX) < 15) {
-                        isDragging = false;
-                        el.style.transform = '';
+                        isDragging = false; el.style.transform = '';
                         if (navigator.vibrate) navigator.vibrate(60);
-                        openMoveDialog(id);
+                        openMoveDialog(task.id);
                     }
                 }, 600);
             });
 
-            // Pohyb prstu
             el.addEventListener('pointermove', (e) => {
                 if (!isDragging) return;
                 currentX = e.clientX - startX;
                 if (Math.abs(currentX) > 10) clearTimeout(longPressTimer);
-                
-                if (currentX > 0) { // Pouze swipe doprava
-                    el.style.transform = `translateX(${currentX}px)`;
-                    el.style.opacity = 1 - (currentX / 400);
-                }
+                el.style.transform = `translateX(${currentX}px)`;
+                el.style.opacity = 1 - (Math.abs(currentX) / 300);
             });
 
-            // Puštění prstu
             el.addEventListener('pointerup', async () => {
                 if (!isDragging) return;
-                clearTimeout(longPressTimer);
-                isDragging = false;
+                clearTimeout(longPressTimer); isDragging = false;
                 el.style.transition = 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s';
 
                 if (currentX > 130) {
-                    // ODHOZENO: Přesun na zítřek
+                    // SWIPE DOPRAVA -> Zítra
                     el.style.transform = 'translateX(100vw)';
-                    const nextDay = new Date(currentDate);
-                    nextDay.setDate(nextDay.getDate() + 1);
-                    await updateDoc(doc(db, "tasks", id), { assignedDate: nextDay.toISOString().split('T')[0] });
+                    const next = new Date(currentDate); next.setDate(next.getDate() + 1);
+                    await updateDoc(doc(db, "tasks", task.id), { assignedDate: next.toISOString().split('T')[0] });
+                } else if (currentX < -130) {
+                    // SWIPE DOLEVA -> Včera
+                    el.style.transform = 'translateX(-100vw)';
+                    const prev = new Date(currentDate); prev.setDate(prev.getDate() - 1);
+                    await updateDoc(doc(db, "tasks", task.id), { assignedDate: prev.toISOString().split('T')[0] });
                 } else {
-                    // NÁVRAT NEBO KLIK
-                    el.style.transform = 'translateX(0)';
-                    el.style.opacity = 1;
+                    el.style.transform = 'translateX(0)'; el.style.opacity = 1;
                     if (Math.abs(currentX) < 5) {
                         const newTC = task.completedTimecode ? null : getWeekTimecode();
-                        await updateDoc(doc(db, "tasks", id), { completedTimecode: newTC });
+                        await updateDoc(doc(db, "tasks", task.id), { completedTimecode: newTC });
                     }
                 }
                 currentX = 0;
             });
-
-            document.getElementById('taskContainer').appendChild(el);
+            container.appendChild(el);
         }
 
-        // 7. OBSLUHA DIALOGŮ
+        // --- 3. GENERÁTOR KALENDÁŘE ---
+        function renderCalendar(dateObj, gridId, titleId, onDayClick) {
+            const year = dateObj.getFullYear();
+            const month = dateObj.getMonth();
+            const grid = document.getElementById(gridId);
+            grid.innerHTML = '';
+            
+            const monthNames = ["Leden", "Únor", "Březen", "Duben", "Květen", "Červen", "Červenec", "Srpen", "Září", "Říjen", "Listopad", "Prosinec"];
+            document.getElementById(titleId).innerText = `${monthNames[month]} ${year}`;
+
+            const daysOfWeek = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+            daysOfWeek.forEach(d => {
+                const el = document.createElement('div'); el.className = 'cal-day-name'; el.innerText = d; grid.appendChild(el);
+            });
+
+            let firstDay = new Date(year, month, 1).getDay();
+            firstDay = firstDay === 0 ? 6 : firstDay - 1; 
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            for(let i=0; i<firstDay; i++) {
+                const empty = document.createElement('div'); empty.className = 'cal-day empty'; grid.appendChild(empty);
+            }
+
+            for(let i=1; i<=daysInMonth; i++) {
+                const dStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+                const cell = document.createElement('div');
+                cell.className = `cal-day ${dStr === realTodayStr ? 'today' : ''} ${dStr === currentDate ? 'selected' : ''}`;
+                cell.innerText = i;
+                
+                if(allTasks.some(t => t.assignedDate === dStr)) {
+                    const dot = document.createElement('div'); dot.className = 'task-dot'; cell.appendChild(dot);
+                }
+
+                cell.onclick = () => onDayClick(dStr);
+                grid.appendChild(cell);
+            }
+        }
+
+        // --- 4. AGENDA (Seznam všech úkolů) ---
+        function renderAgenda() {
+            const container = document.getElementById('agendaContainer');
+            container.innerHTML = '';
+            
+            // Vyfiltrujeme jen dnešní a budoucí úkoly a seřadíme je
+            let futureTasks = allTasks.filter(t => t.assignedDate >= realTodayStr);
+            futureTasks.sort((a, b) => a.assignedDate.localeCompare(b.assignedDate));
+
+            if(futureTasks.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:#999; margin-top:40px;">Žádné úkoly v dohledu.</div>';
+                return;
+            }
+
+            let lastDate = "";
+            futureTasks.forEach(task => {
+                if (task.assignedDate !== lastDate) {
+                    const header = document.createElement('div');
+                    header.className = 'agenda-day-header';
+                    header.innerText = task.assignedDate === realTodayStr ? 'Dnes' : formatCzechDate(task.assignedDate);
+                    container.appendChild(header);
+                    lastDate = task.assignedDate;
+                }
+                // Pro agendu použijeme jednodušší kartu bez swipování (jen jako náhled/klik)
+                const card = document.createElement('div');
+                card.className = `task-card ${task.completedTimecode ? 'completed' : ''}`;
+                card.style.margin = '0 15px 10px 15px';
+                card.style.padding = '15px';
+                card.innerText = task.text;
+                card.onclick = async () => {
+                    const newTC = task.completedTimecode ? null : getWeekTimecode();
+                    await updateDoc(doc(db, "tasks", task.id), { completedTimecode: newTC });
+                };
+                container.appendChild(card);
+            });
+        }
+
+        // --- OBSLUHA TLAČÍTEK A MENU ---
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.onclick = (e) => { e.preventDefault(); switchView(e.currentTarget.getAttribute('data-target')); };
+        });
+
+        // Ovládání hlavního kalendáře
+        document.getElementById('calPrevMonth').onclick = () => { mainCalDate.setMonth(mainCalDate.getMonth() - 1); renderAll(); };
+        document.getElementById('calNextMonth').onclick = () => { mainCalDate.setMonth(mainCalDate.getMonth() + 1); renderAll(); };
+
+        // Ovládání kalendáře pro přesun
+        document.getElementById('movePrevMonth').onclick = () => { moveCalDate.setMonth(moveCalDate.getMonth() - 1); renderAll(); };
+        document.getElementById('moveNextMonth').onclick = () => { moveCalDate.setMonth(moveCalDate.getMonth() + 1); renderAll(); };
+
+        // Přidávání úkolu
         const addDialog = document.getElementById('addTaskDialog');
         const input = document.getElementById('newTaskInput');
-
         document.getElementById('openAddDialogBtn').onclick = () => addDialog.showModal();
         document.getElementById('closeAddDialogBtn').onclick = () => addDialog.close();
-        
         document.getElementById('saveTaskBtn').onclick = async () => {
             const val = input.value.trim();
             if (val) {
-                await addDoc(collection(db, "tasks"), {
-                    text: val,
-                    assignedDate: currentDate,
-                    completedTimecode: null,
-                    createdAt: Date.now()
-                });
-                input.value = '';
-                addDialog.close();
+                await addDoc(collection(db, "tasks"), { text: val, assignedDate: currentDate, completedTimecode: null, createdAt: Date.now() });
+                input.value = ''; addDialog.close();
             }
         };
 
-        // Dialog pro přesun (Long-press)
+        // Long Press Přesun
         function openMoveDialog(taskId) {
             selectedTaskIdForMove = taskId;
-            const grid = document.getElementById('moveDaysGrid');
-            grid.innerHTML = '';
-            
-            for (let i = 1; i <= 6; i++) {
-                const target = new Date();
-                target.setDate(target.getDate() + i);
-                const dStr = target.toISOString().split('T')[0];
-                const dName = target.toLocaleDateString('cs-CZ', { weekday: 'short' });
-
-                const b = document.createElement('button');
-                b.className = 'btn btn-primary';
-                b.innerText = `${dName} ${target.getDate()}.${target.getMonth()+1}.`;
-                b.onclick = async () => {
-                    await updateDoc(doc(db, "tasks", selectedTaskIdForMove), { assignedDate: dStr });
-                    document.getElementById('moveTaskDialog').close();
-                };
-                grid.appendChild(b);
-            }
+            moveCalDate = new Date(currentDate); // Nastaví kalendář na měsíc, ve kterém úkol aktuálně je
+            renderAll();
             document.getElementById('moveTaskDialog').showModal();
         }
         document.getElementById('closeMoveDialogBtn').onclick = () => document.getElementById('moveTaskDialog').close();
 
-        // 8. START A PWA
-        renderDaysNav();
-        loadTasksForDate(currentDate);
+        // INICIALIZACE SERVICE WORKERU PRO PWA
+        if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js'); }
 
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js');
-        }
     </script>
 </body>
 </html>
