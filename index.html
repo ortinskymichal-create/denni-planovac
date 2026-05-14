@@ -40,6 +40,7 @@
             display: flex; align-items: center; justify-content: space-between;
             transition: transform 0.1s linear, background-color 0.4s ease, opacity 0.3s;
             user-select: none; position: relative; z-index: 2;
+            will-change: transform; /* Optimalizace pro plynulejší animace */
         }
         .task-card.completed { background-color: var(--success); color: white; box-shadow: none; }
         .task-text { flex: 1; margin-right: 10px; pointer-events: none; }
@@ -75,21 +76,18 @@
         .btn-text { background: transparent; color: #888; }
 
         /* ANIMACE PRO PLYNULÉ PŘECHODY DNŮ A MĚSÍCŮ */
-        .slide-out-left { animation: slideOutLeft 0.3s forwards cubic-bezier(0.25, 0.8, 0.25, 1); }
-        .slide-out-right { animation: slideOutRight 0.3s forwards cubic-bezier(0.25, 0.8, 0.25, 1); }
-        .slide-in-left { animation: slideInLeft 0.3s forwards cubic-bezier(0.25, 0.8, 0.25, 1); }
-        .slide-in-right { animation: slideInRight 0.3s forwards cubic-bezier(0.25, 0.8, 0.25, 1); }
-        @keyframes slideOutLeft { to { transform: translateX(-100%); opacity: 0; } }
-        @keyframes slideOutRight { to { transform: translateX(100%); opacity: 0; } }
-        @keyframes slideInLeft { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .anim-container { position: relative; overflow: hidden; width: 100%; }
+        .slide-element { transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1); width: 100%; }
+        .slide-clone { position: absolute; top: 0; left: 0; pointer-events: none; }
     </style>
 </head>
 <body>
 
     <div id="view-plan" class="view active">
         <nav class="days-nav" id="daysNav"></nav>
-        <main class="task-container" id="taskContainer"></main>
+        <div class="anim-container">
+            <main class="task-container slide-element" id="taskContainer"></main>
+        </div>
         <div class="add-btn-container"><button class="add-btn" id="openAddDialogBtn">+ Přidat úkol</button></div>
     </div>
 
@@ -97,7 +95,9 @@
         <div class="calendar-header">
             <button class="icon-btn" id="calPrevMonth">◀</button><span id="calMonthYear"></span><button class="icon-btn" id="calNextMonth">▶</button>
         </div>
-        <div class="calendar-grid" id="mainCalendarGrid"></div>
+        <div class="anim-container" style="min-height: 350px;">
+            <div class="calendar-grid slide-element" id="mainCalendarGrid"></div>
+        </div>
     </div>
 
     <div id="view-tasks" class="view">
@@ -150,6 +150,8 @@
         let selectedTaskIdForEdit = null;
         let mainCalDate = new Date(); 
         let moveCalDate = new Date(); 
+        
+        let isAnimating = false; // Zabrání přeskakování gest během animace
 
         function getWeekTimecode() {
             const d = new Date(); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
@@ -166,32 +168,47 @@
             document.querySelector(`.nav-item[data-target="${viewId}"]`).classList.add('active');
         }
 
-        // MOTOR ANIMACÍ (Zkopíruje prvek pro odjezd a originál přijede z druhé strany)
+        // PERFEKTNÍ ANIMACE: Starý obsah posuneme pryč a nový zároveň přisuneme ze strany
         function animateTransition(container, direction, updateStateFunc) {
+            if (isAnimating) return;
+            isAnimating = true;
+
             const clone = container.cloneNode(true);
-            const rect = container.getBoundingClientRect();
-            clone.style.position = 'fixed';
-            clone.style.top = rect.top + 'px'; clone.style.left = rect.left + 'px';
-            clone.style.width = rect.width + 'px'; clone.style.height = rect.height + 'px';
-            clone.style.margin = '0'; clone.style.pointerEvents = 'none'; clone.style.zIndex = '5';
-            document.body.appendChild(clone);
+            clone.classList.add('slide-clone');
+            container.parentNode.appendChild(clone);
 
-            const outClass = direction === 'next' ? 'slide-out-left' : 'slide-out-right';
-            const inClass = direction === 'next' ? 'slide-in-right' : 'slide-in-left';
+            // Skryjeme momentální úkoly/kalendář a překreslíme data
+            container.style.visibility = 'hidden';
+            updateStateFunc(); 
 
-            clone.classList.add(outClass);
-            updateStateFunc(); // Provede změnu obsahu (další den/měsíc)
-            
-            container.classList.remove('slide-in-left', 'slide-in-right');
-            void container.offsetWidth; // Restart CSS animace
-            container.classList.add(inClass);
+            // Připravíme pozici nového prvku (mimo obrazovku)
+            const shiftOut = direction === 'next' ? '-100%' : '100%';
+            const shiftIn = direction === 'next' ? '100%' : '-100%';
 
-            setTimeout(() => { if(clone.parentNode) clone.parentNode.removeChild(clone); }, 300);
+            container.style.transform = `translateX(${shiftIn})`;
+            container.style.transition = 'none'; // Odstraníme přechod pro okamžitý přesun
+            container.style.visibility = 'visible';
+
+            // Počkáme na překreslení a spustíme animaci obou prvků najednou
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    container.style.transition = 'transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1)';
+                    clone.style.transition = 'transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1)';
+                    
+                    container.style.transform = 'translateX(0)';
+                    clone.style.transform = `translateX(${shiftOut})`;
+
+                    setTimeout(() => {
+                        if(clone.parentNode) clone.parentNode.removeChild(clone);
+                        isAnimating = false;
+                    }, 350);
+                });
+            });
         }
 
         onSnapshot(collection(db, "tasks"), (snapshot) => {
             allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            renderAll(); 
+            if (!isAnimating) renderAll(); 
         });
 
         function renderAll() {
@@ -254,14 +271,12 @@
             dayTasks.forEach(task => renderTaskCard(task, container));
         }
 
-        // KARTY A GESTA PROTI KOLIZI SE SCROLLOVÁNÍM
         function renderTaskCard(task, container) {
             const el = document.createElement('div');
             el.className = `task-card ${task.completedTimecode ? 'completed' : ''}`;
             
             const textSpan = document.createElement('span'); textSpan.className = 'task-text'; textSpan.innerText = task.text; el.appendChild(textSpan);
 
-            // Tlačítko decentní tužky (vloženo přes SVG)
             const editBtn = document.createElement('button');
             editBtn.className = 'edit-btn';
             editBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>';
@@ -273,29 +288,40 @@
             };
             el.appendChild(editBtn);
 
-            let startX = 0, startY = 0, currentX = 0, currentY = 0, isDragging = false, isScrolling = false, dragDirection = null;
+            let startX = 0, startY = 0, currentX = 0, currentY = 0, isDragging = false, isScrolling = false, dragDirection = null, longPressTimer;
 
+            // Oprava Long Press: Spustí se hned na touchstart a zruší při jakémkoliv pohybu
             el.addEventListener('touchstart', (e) => {
-                if (e.target.closest('.edit-btn')) return; // Zcela ignoruje kliknutí na tužku
+                if (e.target.closest('.edit-btn')) return; 
                 startX = e.touches[0].clientX; startY = e.touches[0].clientY;
                 isDragging = true; isScrolling = false; dragDirection = null; el.style.transition = 'none';
+                
+                longPressTimer = setTimeout(() => {
+                    if(isDragging && !isScrolling) {
+                        isDragging = false; el.style.transform = '';
+                        if (navigator.vibrate) navigator.vibrate(60);
+                        openMoveDialog(task.id);
+                    }
+                }, 500); // 500ms stačí pro dobrý pocit
             }, {passive: true});
 
-            // Klíčový bod: passive: false nám dává možnost blokovat prohlížeči scrollování, pokud letíme vzhůru
             el.addEventListener('touchmove', (e) => {
                 if (!isDragging || isScrolling) return;
                 currentX = e.touches[0].clientX - startX; currentY = e.touches[0].clientY - startY;
                 
+                // Zrušení dlouhého stisku při pohybu
+                if (Math.abs(currentX) > 10 || Math.abs(currentY) > 10) clearTimeout(longPressTimer);
+                
                 if (!dragDirection) {
                     if (Math.abs(currentX) > 15) dragDirection = 'horizontal';
                     else if (Math.abs(currentY) > 15) {
-                        if (currentY > 0) isScrolling = true; // Táhne dolů -> nech prohlížeč klasicky scrollovat
-                        else dragDirection = 'vertical';      // Táhne nahoru -> chce smazat! Zablokujeme prohlížeč.
+                        if (currentY > 0) isScrolling = true; 
+                        else dragDirection = 'vertical';      
                     }
                 }
 
                 if (dragDirection) {
-                    if (e.cancelable) e.preventDefault(); // Přerušení nativního svajpování/scrollování!
+                    if (e.cancelable) e.preventDefault(); 
                     if (dragDirection === 'horizontal') {
                         el.style.transform = `translateX(${currentX}px)`; el.style.opacity = 1 - (Math.abs(currentX) / 300);
                     } else if (dragDirection === 'vertical') {
@@ -305,24 +331,28 @@
             }, {passive: false});
 
             el.addEventListener('touchend', async (e) => {
-                if (e.target.closest('.edit-btn') || !isDragging || isScrolling) return;
+                if (e.target.closest('.edit-btn') || !isDragging || isScrolling) {
+                    clearTimeout(longPressTimer);
+                    return;
+                }
+                clearTimeout(longPressTimer);
                 isDragging = false;
                 el.style.transition = 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s';
 
-                if (dragDirection === 'vertical' && currentY < -100) {
+                if (dragDirection === 'vertical' && currentY < -80) {
                     el.style.transform = 'translateY(-100vh)'; el.style.opacity = 0;
                     await deleteDoc(doc(db, "tasks", task.id));
-                } else if (dragDirection === 'horizontal' && currentX > 130) {
+                } else if (dragDirection === 'horizontal' && currentX > 100) {
                     el.style.transform = 'translateX(100vw)';
                     const next = new Date(currentDate); next.setDate(next.getDate() + 1);
                     await updateDoc(doc(db, "tasks", task.id), { assignedDate: next.toISOString().split('T')[0] });
-                } else if (dragDirection === 'horizontal' && currentX < -130) {
+                } else if (dragDirection === 'horizontal' && currentX < -100) {
                     el.style.transform = 'translateX(-100vw)';
                     const prev = new Date(currentDate); prev.setDate(prev.getDate() - 1);
                     await updateDoc(doc(db, "tasks", task.id), { assignedDate: prev.toISOString().split('T')[0] });
                 } else {
                     el.style.transform = 'translate(0,0)'; el.style.opacity = 1;
-                    if (Math.abs(currentX) < 5 && Math.abs(currentY) < 5) { // Pokud to byl jen čistý klik
+                    if (Math.abs(currentX) < 5 && Math.abs(currentY) < 5) { 
                         const newTC = task.completedTimecode ? null : getWeekTimecode();
                         await updateDoc(doc(db, "tasks", task.id), { completedTimecode: newTC });
                     }
@@ -371,10 +401,8 @@
             });
         }
 
-        // TLAČÍTKA A OBSLUHA
         document.querySelectorAll('.nav-item').forEach(item => { item.onclick = (e) => { e.preventDefault(); switchView(e.currentTarget.getAttribute('data-target')); }; });
         
-        // Plynulý posun měsíce přes tlačítka nahoře
         document.getElementById('calPrevMonth').onclick = () => { animateTransition(document.getElementById('mainCalendarGrid'), 'prev', () => { mainCalDate.setMonth(mainCalDate.getMonth() - 1); renderAll(); }); };
         document.getElementById('calNextMonth').onclick = () => { animateTransition(document.getElementById('mainCalendarGrid'), 'next', () => { mainCalDate.setMonth(mainCalDate.getMonth() + 1); renderAll(); }); };
         
@@ -396,28 +424,32 @@
             if (val && selectedTaskIdForEdit) { await updateDoc(doc(db, "tasks", selectedTaskIdForEdit), { text: val }); editDialog.close(); }
         };
 
+        function openMoveDialog(taskId) {
+            selectedTaskIdForMove = taskId; moveCalDate = new Date(currentDate); 
+            document.getElementById('moveTaskDialog').showModal(); renderAll(); 
+        }
+        document.getElementById('closeMoveDialogBtn').onclick = () => document.getElementById('moveTaskDialog').close();
+
         if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js'); }
 
-        // --- GESTA NA POZADÍ S ANIMACEMI (SVAJP DOLEVA = ZÍTRA) ---
+        // --- GESTA NA POZADÍ PRO PŘEPÍNÁNÍ DNŮ ---
         let bgStartX = 0, bgEndX = 0;
-        document.getElementById('taskContainer').addEventListener('touchstart', e => {
-            if (e.target.closest('.task-card')) return; 
+        document.getElementById('view-plan').addEventListener('touchstart', e => {
+            if (e.target.closest('.task-card') || e.target.closest('.add-btn')) return; 
             bgStartX = e.touches[0].clientX;
         }, {passive: true});
         
-        document.getElementById('taskContainer').addEventListener('touchend', e => {
-            if (e.target.closest('.task-card')) return;
+        document.getElementById('view-plan').addEventListener('touchend', e => {
+            if (e.target.closest('.task-card') || e.target.closest('.add-btn')) return;
             bgEndX = e.changedTouches[0].clientX;
             const diff = bgStartX - bgEndX;
             
             if (Math.abs(diff) > 60) {
-                // Přehodil jsem logiku podle tvého požadavku + přidal animace
                 const direction = diff > 0 ? 'next' : 'prev'; 
-                
                 animateTransition(document.getElementById('taskContainer'), direction, () => {
                     const current = new Date(currentDate);
-                    if (direction === 'next') current.setDate(current.getDate() + 1); // Svajp doleva -> přijede zítřek zprava
-                    else current.setDate(current.getDate() - 1); // Svajp doprava -> přijede včerejšek zleva
+                    if (direction === 'next') current.setDate(current.getDate() + 1); // Svajp doleva -> přijede zítřek
+                    else current.setDate(current.getDate() - 1); 
                     
                     currentDate = current.toISOString().split('T')[0];
                     navCenterDateStr = currentDate;
@@ -427,7 +459,7 @@
             }
         }, {passive: true});
 
-        // Kalendář swipování s animací
+        // --- GESTA NA POZADÍ PRO KALENDÁŘ ---
         let calStartX = 0, calEndX = 0;
         document.getElementById('view-calendar').addEventListener('touchstart', e => { calStartX = e.touches[0].clientX; }, {passive: true});
         document.getElementById('view-calendar').addEventListener('touchend', e => {
