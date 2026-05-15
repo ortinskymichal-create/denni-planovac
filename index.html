@@ -22,7 +22,6 @@
         .view { display: none; min-height: calc(100vh - 150px); }
         .view.active { display: block; }
 
-        /* HORIZONTÁLNÍ NAVIGACE */
         .days-nav { display: flex; overflow-x: auto; background: var(--card-bg); padding: 15px 10px; box-shadow: var(--shadow); position: sticky; top: 0; z-index: 10; scrollbar-width: none; align-items: center; }
         .days-nav::-webkit-scrollbar { display: none; }
         .day-tab { flex: 0 0 auto; padding: 10px 18px; margin-right: 10px; border-radius: 20px; background: #eee; color: #666; font-weight: bold; text-decoration: none; text-align: center; border: 2px solid transparent; transition: background-color 0.2s, color 0.2s; }
@@ -30,13 +29,11 @@
         .day-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
         .icon-btn { font-size: 1.5rem; background: transparent; border: none; padding: 0 10px; cursor: pointer; color: var(--primary); }
         
-        /* DECENTNÍ TUŽKA PRO EDITACI A DRAG HANDLE */
         .edit-btn { color: #aaa; background: transparent; border: none; padding: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .task-card.completed .edit-btn { color: #fff; opacity: 0.7; }
         .drag-handle { color: #ccc; padding-right: 15px; font-size: 1.5rem; cursor: grab; touch-action: none; display: flex; align-items: center; justify-content: center; }
         .task-card.completed .drag-handle { color: #fff; opacity: 0.5; cursor: default; pointer-events: none; }
 
-        /* KARTY ÚKOLŮ */
         .task-container { padding: 20px 15px; display: flex; flex-direction: column; gap: 15px; min-height: 60vh; position: relative; }
         .task-card {
             background: var(--card-bg); border-radius: 15px; padding: 10px 10px 10px 15px;
@@ -49,7 +46,6 @@
         .task-text { flex: 1; margin-right: 10px; pointer-events: none; }
         .task-card.sortable-ghost { opacity: 0.4; } 
 
-        /* TLAČÍTKA A MENU */
         .add-btn-container { padding: 0 15px; margin-top: 10px; }
         .add-btn { width: 100%; padding: 15px; border: 2px dashed var(--primary); background: transparent; color: var(--primary); border-radius: 15px; font-size: 1.2rem; font-weight: bold; cursor: pointer; }
         .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card-bg); display: flex; justify-content: space-around; padding: 12px 0; box-shadow: 0 -3px 15px rgba(0,0,0,0.08); z-index: 100; }
@@ -57,7 +53,6 @@
         .nav-item.active { color: var(--primary); font-weight: bold; }
         .nav-item span { font-size: 1.4rem; }
 
-        /* KALENDÁŘ */
         .calendar-header { display: flex; justify-content: space-between; align-items: center; padding: 15px; font-size: 1.2rem; font-weight: bold; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; padding: 10px; text-align: center; position: relative; }
         .cal-day-name { font-weight: bold; color: #888; font-size: 0.9rem; padding-bottom: 10px; }
@@ -67,11 +62,9 @@
         .cal-day.selected { background: var(--primary); color: white; border-color: var(--primary); }
         .task-dot { height: 6px; width: 6px; background-color: var(--dot-color); border-radius: 50%; position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); }
 
-        /* AGENDA A KOŠ */
         .agenda-day-header { font-size: 1.1rem; font-weight: bold; color: var(--primary); margin: 20px 15px 10px 15px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
         .trash-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 15px 5px 15px; }
 
-        /* DIALOGY */
         dialog { margin: auto; border: none; border-radius: 20px; padding: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); width: 95%; max-width: 450px; }
         dialog::backdrop { background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); }
         .dialog-content input { width: 100%; padding: 15px; margin: 15px 0; border: 2px solid #eee; border-radius: 10px; font-size: 1.1rem; outline: none; }
@@ -81,7 +74,6 @@
         .btn-text { background: transparent; color: #888; }
         .btn-danger { background: transparent; border: 1px solid var(--dot-color); color: var(--dot-color); padding: 8px 15px; }
 
-        /* ANIMACE PRO PLYNULÉ PŘECHODY DNŮ A MĚSÍCŮ */
         .anim-container { position: relative; overflow: hidden; width: 100%; }
         .slide-element { transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1); width: 100%; }
         .slide-clone { position: absolute; top: 0; left: 0; pointer-events: none; }
@@ -174,7 +166,7 @@
         let moveCalDate = new Date(); 
         
         let isAnimating = false; 
-        let needsReorder = false; // Flag pro zpožděné řazení
+        let needsReorder = false; 
 
         function getWeekTimecode() {
             const d = new Date(); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
@@ -190,10 +182,27 @@
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             document.querySelector(`.nav-item[data-target="${viewId}"]`).classList.add('active');
             
-            // Při změně pohledu aplikujeme odložené řazení (aby propadly hotové úkoly)
             if (needsReorder) {
                 needsReorder = false;
                 renderAll();
+            }
+
+            // AUTO-SCROLL pro Agendu (Odscrollování na "Dnes")
+            if (viewId === 'view-tasks') {
+                setTimeout(() => {
+                    let scrollToEl = document.getElementById('agenda-today');
+                    if (!scrollToEl) {
+                        const headers = Array.from(document.querySelectorAll('.agenda-day-header'));
+                        scrollToEl = headers.find(h => h.dataset.date >= realTodayStr);
+                        if (!scrollToEl && headers.length > 0) scrollToEl = headers[headers.length - 1];
+                    }
+                    if (scrollToEl) {
+                        const y = scrollToEl.getBoundingClientRect().top + window.pageYOffset - 20;
+                        window.scrollTo({top: y, behavior: 'auto'});
+                    } else {
+                        window.scrollTo(0, 0);
+                    }
+                }, 50);
             }
         }
 
@@ -245,7 +254,7 @@
 
         onSnapshot(collection(db, "tasks"), (snapshot) => {
             allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            if (!isAnimating && !needsReorder) renderAll(); // Nepřekresluj ihned, pokud čekáme na zpožděné řazení
+            if (!isAnimating && !needsReorder) renderAll(); 
         });
 
         function renderAll() {
@@ -255,7 +264,7 @@
             renderCalendar(mainCalDate, 'mainCalendarGrid', 'calMonthYear', (d) => {
                 currentDate = d; navCenterDateStr = d; 
                 document.getElementById('daysNav').dataset.initialized = ""; 
-                needsReorder = false; // Vynutí seřazení při překliknutí kalendáře
+                needsReorder = false; 
                 switchView('view-plan'); renderAll();
             });
             if(document.getElementById('moveTaskDialog').open) {
@@ -285,7 +294,7 @@
                 a.onclick = (e) => { 
                     e.preventDefault(); 
                     currentDate = dateStr; 
-                    needsReorder = false; // Vynutí přeřazení při změně dne přes lištu
+                    needsReorder = false; 
                     renderAll(); 
                 };
                 nav.appendChild(a);
@@ -305,9 +314,6 @@
 
         function renderDailyPlan() {
             const container = document.getElementById('taskContainer');
-            
-            // Zachytíme existující DOM elementy, abychom zamezili problikávání, pokud je to možné
-            const existingCards = Array.from(container.children);
             container.innerHTML = '';
             
             let dayTasks = allTasks.filter(t => t.assignedDate === currentDate && !t.deleted);
@@ -352,7 +358,12 @@
 
             el.addEventListener('touchstart', (e) => {
                 if (e.target.closest('.edit-btn') || e.target.closest('.drag-handle')) return; 
-                startX = e.touches[0].clientX;
+                
+                // OPRAVA: Ignorovat zóny pro edge swipe, aby mohl uživatel svajpovat stránkou
+                const touchX = e.touches[0].clientX;
+                if (touchX < 40 || touchX > window.innerWidth - 40) return;
+
+                startX = touchX;
                 isDragging = true; dragDirection = null; el.style.transition = 'none';
                 
                 longPressTimer = setTimeout(() => {
@@ -405,10 +416,8 @@
                         const isCompleting = !task.completedTimecode;
                         const newTC = isCompleting ? getWeekTimecode() : null;
                         
-                        // Zpožděné řazení: nastavíme flag, aby se nezavolal ihned renderAll
                         needsReorder = true; 
                         
-                        // Vizuální aktualizace okamžitě bez překreslení seznamu
                         if (isCompleting) {
                             el.classList.add('completed');
                             el.querySelector('.drag-handle').style.pointerEvents = 'none';
@@ -425,7 +434,6 @@
             container.appendChild(el);
         }
 
-        // --- ZOBRAZENÍ KOŠE ---
         function renderTrash() {
             const container = document.getElementById('trashContainer');
             const emptyBtn = document.getElementById('emptyTrashBtn');
@@ -439,7 +447,7 @@
                 return;
             }
             
-            emptyBtn.style.display = 'block'; // Zobrazit tlačítko "Vysypat koš"
+            emptyBtn.style.display = 'block'; 
             
             trashedTasks.forEach(task => {
                 const el = document.createElement('div');
@@ -458,7 +466,6 @@
             });
         }
 
-        // --- FUNKCE VYSYPAT KOŠ ---
         document.getElementById('emptyTrashBtn').onclick = async () => {
             const trashedTasks = allTasks.filter(t => t.deleted === true);
             if(confirm('Opravdu chcete trvale smazat všechny úkoly v koši? Tuto akci nelze vrátit.')) {
@@ -490,14 +497,20 @@
 
         function renderAgenda() {
             const container = document.getElementById('agendaContainer'); container.innerHTML = '';
-            let futureTasks = allTasks.filter(t => t.assignedDate >= realTodayStr && !t.deleted);
-            futureTasks.sort((a, b) => a.assignedDate.localeCompare(b.assignedDate));
-            if(futureTasks.length === 0) { container.innerHTML = '<div style="text-align:center; color:#999; margin-top:40px;">Žádné úkoly v dohledu.</div>'; return; }
+            let agendaTasks = allTasks.filter(t => !t.deleted); // Nově načítá úplně všechny
+            agendaTasks.sort((a, b) => a.assignedDate.localeCompare(b.assignedDate));
+            if(agendaTasks.length === 0) { container.innerHTML = '<div style="text-align:center; color:#999; margin-top:40px;">Žádné úkoly.</div>'; return; }
             let lastDate = "";
-            futureTasks.forEach(task => {
+            agendaTasks.forEach(task => {
                 if (task.assignedDate !== lastDate) {
                     const header = document.createElement('div'); header.className = 'agenda-day-header';
-                    header.innerText = task.assignedDate === realTodayStr ? 'Dnes' : formatCzechDate(task.assignedDate);
+                    header.dataset.date = task.assignedDate;
+                    if (task.assignedDate === realTodayStr) {
+                        header.innerText = 'Dnes';
+                        header.id = 'agenda-today'; // Kotva pro auto-scroll
+                    } else {
+                        header.innerText = formatCzechDate(task.assignedDate);
+                    }
                     container.appendChild(header); lastDate = task.assignedDate;
                 }
                 const card = document.createElement('div'); card.className = `task-card ${task.completedTimecode ? 'completed' : ''}`;
@@ -517,14 +530,14 @@
 
         const addDialog = document.getElementById('addTaskDialog'); const input = document.getElementById('newTaskInput');
         document.getElementById('openAddDialogBtn').onclick = () => {
-            input.value = ''; // Vyčištění před otevřením
+            input.value = ''; 
             addDialog.showModal();
         };
         document.getElementById('closeAddDialogBtn').onclick = () => addDialog.close();
         document.getElementById('saveTaskBtn').onclick = async () => {
             const val = input.value.trim();
             if (val) { 
-                addDialog.close(); // Okamžité zavření
+                addDialog.close(); 
                 await addDoc(collection(db, "tasks"), { text: val, assignedDate: currentDate, completedTimecode: null, createdAt: Date.now(), order: Date.now(), deleted: false }); 
             }
         };
@@ -535,7 +548,7 @@
         document.getElementById('saveEditTaskBtn').onclick = async () => {
             const val = document.getElementById('editTaskInput').value.trim();
             if (val && selectedTaskIdForEdit) { 
-                editDialog.close(); // Okamžité zavření
+                editDialog.close(); 
                 await updateDoc(doc(db, "tasks", selectedTaskIdForEdit), { text: val }); 
             }
         };
@@ -555,20 +568,34 @@
 
         if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js'); }
 
-        // --- GESTA NA POZADÍ PRO PŘEPÍNÁNÍ DNŮ ---
-        let bgStartX = 0, bgEndX = 0;
+        // --- GESTA NA POZADÍ (OPRAVA EDGE SWIPU A BLOKACE HORNÍ LIŠTY) ---
+        let bgStartX = 0, bgEndX = 0, bgStartY = 0;
         document.getElementById('view-plan').addEventListener('touchstart', e => {
-            if (e.target.closest('.task-card') || e.target.closest('.add-btn')) return; 
-            bgStartX = e.touches[0].clientX;
+            if (e.target.closest('.days-nav')) return; // Zabrání přepnutí dne, když scroluješ v horní liště
+            if (e.target.closest('.add-btn')) return; 
+            
+            const touchX = e.touches[0].clientX;
+            const isEdgeSwipe = touchX < 40 || touchX > window.innerWidth - 40; // Gesto z úplného okraje
+            
+            // Pokud jsi na kartě a neděláš okrajové gesto, svajp stránky ignorujeme (bere si ho karta)
+            if (e.target.closest('.task-card') && !isEdgeSwipe) return; 
+
+            bgStartX = touchX;
+            bgStartY = e.touches[0].clientY;
         }, {passive: true});
         
         document.getElementById('view-plan').addEventListener('touchend', e => {
-            if (e.target.closest('.task-card') || e.target.closest('.add-btn')) return;
+            if (bgStartX === 0) return;
             bgEndX = e.changedTouches[0].clientX;
-            const diff = bgStartX - bgEndX;
+            const bgEndY = e.changedTouches[0].clientY;
             
-            if (Math.abs(diff) > 60) {
-                const direction = diff > 0 ? 'next' : 'prev'; 
+            const diffX = bgStartX - bgEndX;
+            const diffY = bgStartY - bgEndY;
+            bgStartX = 0;
+            
+            // Musí to být tah přes 60px a víc vodorovný než svislý
+            if (Math.abs(diffX) > 60 && Math.abs(diffX) > Math.abs(diffY)) {
+                const direction = diffX > 0 ? 'next' : 'prev'; 
                 animateTransition(document.getElementById('taskContainer'), direction, () => {
                     const current = new Date(currentDate);
                     if (direction === 'next') current.setDate(current.getDate() + 1); 
@@ -577,21 +604,25 @@
                     currentDate = current.toISOString().split('T')[0];
                     navCenterDateStr = currentDate;
                     document.getElementById('daysNav').dataset.initialized = "";
-                    needsReorder = false; // Vynutí seřazení při přepnutí dne svajpem
+                    needsReorder = false; 
                     renderAll();
                 });
             }
         }, {passive: true});
 
-        // --- GESTA NA POZADÍ PRO KALENDÁŘ ---
-        let calStartX = 0, calEndX = 0;
-        document.getElementById('view-calendar').addEventListener('touchstart', e => { calStartX = e.touches[0].clientX; }, {passive: true});
+        let calStartX = 0, calEndX = 0, calStartY = 0;
+        document.getElementById('view-calendar').addEventListener('touchstart', e => { 
+            calStartX = e.touches[0].clientX; 
+            calStartY = e.touches[0].clientY;
+        }, {passive: true});
         document.getElementById('view-calendar').addEventListener('touchend', e => {
             calEndX = e.changedTouches[0].clientX;
-            const diff = calStartX - calEndX;
+            const calEndY = e.changedTouches[0].clientY;
+            const diffX = calStartX - calEndX;
+            const diffY = calStartY - calEndY;
             
-            if (Math.abs(diff) > 60) {
-                const direction = diff > 0 ? 'next' : 'prev';
+            if (Math.abs(diffX) > 60 && Math.abs(diffX) > Math.abs(diffY)) {
+                const direction = diffX > 0 ? 'next' : 'prev';
                 animateTransition(document.getElementById('mainCalendarGrid'), direction, () => {
                     if (direction === 'next') mainCalDate.setMonth(mainCalDate.getMonth() + 1);
                     else mainCalDate.setMonth(mainCalDate.getMonth() - 1);
