@@ -88,9 +88,10 @@
         .btn-text { background: transparent; color: #888; }
         .btn-danger { background: transparent; border: 1px solid var(--dot-color); color: var(--dot-color); padding: 8px 15px; }
 
-        .anim-container { position: relative; overflow: hidden; width: 100%; }
+        /* OPRAVA ANIMACÍ A FIXACE ŠÍŘKY */
+        .anim-container { position: relative; overflow-x: hidden; width: 100%; }
         .slide-element { width: 100%; }
-        .slide-clone { position: absolute; top: 0; pointer-events: none; }
+        .slide-clone { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; box-sizing: border-box; }
     </style>
 </head>
 <body>
@@ -254,32 +255,6 @@
             }
         }
 
-        // TLAČÍTKOVÁ ANIMACE PRO KALENDÁŘ
-        function triggerProgrammaticSwipe(container, fillContentFn, onComplete, direction) {
-            const ghost = document.createElement('div');
-            ghost.className = container.className + ' slide-clone';
-            ghost.style.left = direction === 'next' ? '100%' : '-100%';
-            fillContentFn(ghost);
-            container.parentNode.appendChild(ghost);
-            
-            container.style.transition = 'transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1)';
-            ghost.style.transition = 'transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1)';
-            const moveX = direction === 'next' ? -window.innerWidth : window.innerWidth;
-            
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    container.style.transform = `translateX(${moveX}px)`;
-                    ghost.style.transform = `translateX(${moveX}px)`;
-                    setTimeout(() => {
-                        onComplete();
-                        if(ghost) ghost.remove();
-                        container.style.transition = 'none';
-                        container.style.transform = 'translateX(0)';
-                    }, 350);
-                });
-            });
-        }
-
         new Sortable(document.getElementById('taskContainer'), {
             handle: '.drag-handle', animation: 150,
             onEnd: function (evt) {
@@ -414,12 +389,14 @@
                 if (!isDragging || isScrolling) return;
                 currentX = e.touches[0].clientX - startX;
                 currentY = e.touches[0].clientY - startY;
+                
                 if (Math.abs(currentX) > 10 || Math.abs(currentY) > 10) clearTimeout(longPressTimer);
                 
                 if (!dragDirection && isMainView && !task.completedTimecode) {
                     if (Math.abs(currentX) > 15) dragDirection = 'horizontal';
                     else if (Math.abs(currentY) > 15 && currentY > 0) isScrolling = true;
                 }
+
                 if (dragDirection === 'horizontal') {
                     if (e.cancelable) e.preventDefault(); 
                     el.style.transform = `translateX(${currentX}px)`; el.style.opacity = 1 - (Math.abs(currentX) / 300);
@@ -526,6 +503,36 @@
             });
         }
 
+        // TLAČÍTKOVÁ ANIMACE PRO KALENDÁŘ S OPRAVENOU VÝŠKOU
+        function triggerProgrammaticSwipe(container, fillContentFn, onComplete, direction) {
+            const ghost = document.createElement('div');
+            ghost.className = container.className + ' slide-clone';
+            ghost.style.left = direction === 'next' ? '100%' : '-100%';
+            fillContentFn(ghost);
+            container.parentNode.appendChild(ghost);
+            
+            const currentHeight = container.offsetHeight;
+            container.parentNode.style.minHeight = Math.max(currentHeight, ghost.offsetHeight) + 'px';
+            
+            container.style.transition = 'transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1)';
+            ghost.style.transition = 'transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1)';
+            const moveX = direction === 'next' ? -window.innerWidth : window.innerWidth;
+            
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    container.style.transform = `translateX(${moveX}px)`;
+                    ghost.style.transform = `translateX(${moveX}px)`;
+                    setTimeout(() => {
+                        onComplete();
+                        if(ghost) ghost.remove();
+                        container.style.transition = 'none';
+                        container.style.transform = 'translateX(0)';
+                        container.parentNode.style.minHeight = '';
+                    }, 350);
+                });
+            });
+        }
+
         document.querySelectorAll('.nav-item').forEach(item => { item.onclick = (e) => { e.preventDefault(); switchView(e.currentTarget.closest('.nav-item').getAttribute('data-target')); }; });
         
         document.getElementById('calPrevMonth').onclick = () => { const d = new Date(mainCalDate); d.setMonth(d.getMonth() - 1); triggerProgrammaticSwipe(document.getElementById('mainCalendarGrid'), (g) => fillGhostCalendar(g, d), () => { mainCalDate = d; renderAll(); }, 'prev'); };
@@ -561,7 +568,7 @@
 
         if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js'); }
 
-        // --- 1:1 SVAJP TRACKER PRO PŘEHLED DNŮ ---
+        // --- 1:1 SVAJP TRACKER PRO PŘEHLED DNŮ (S OPRAVOU VÝŠKY) ---
         let viewSwipe = { active: false, startX: 0, startY: 0, container: null, ghost: null, targetVal: null, dir: 0 };
 
         document.getElementById('view-plan').addEventListener('touchstart', e => {
@@ -584,7 +591,7 @@
             if (!viewSwipe.active) {
                 if (Math.abs(diffX) > 15 && Math.abs(diffX) > Math.abs(diffY)) {
                     viewSwipe.active = true;
-                    viewSwipe.dir = diffX > 0 ? 1 : -1; // 1 = vpravo (včera), -1 = vlevo (zítra)
+                    viewSwipe.dir = diffX > 0 ? 1 : -1; 
                     
                     const targetD = new Date(currentDate);
                     targetD.setDate(targetD.getDate() - viewSwipe.dir);
@@ -597,13 +604,17 @@
                     fillGhostTasks(viewSwipe.ghost, viewSwipe.targetVal);
                     viewSwipe.container.parentNode.appendChild(viewSwipe.ghost);
                     
+                    // DYNAMICKÉ UDRŽENÍ VÝŠKY BĚHEM SVAJPOVÁNÍ
+                    const maxH = Math.max(viewSwipe.container.offsetHeight, viewSwipe.ghost.offsetHeight);
+                    viewSwipe.container.parentNode.style.minHeight = maxH + 'px';
+                    
                     viewSwipe.container.style.transition = 'none';
                     viewSwipe.ghost.style.transition = 'none';
                 } else if (Math.abs(diffY) > 15) { viewSwipe.startX = 0; }
             }
 
             if (viewSwipe.active) {
-                if (e.cancelable) e.preventDefault(); // Zamkne scrollování a nativní gesta prohlížeče
+                if (e.cancelable) e.preventDefault(); 
                 viewSwipe.container.style.transform = `translateX(${diffX}px)`;
                 viewSwipe.ghost.style.transform = `translateX(${diffX}px)`;
             }
@@ -612,7 +623,7 @@
         document.getElementById('view-plan').addEventListener('touchend', e => {
             if (!viewSwipe.active) { viewSwipe.startX = 0; return; }
             const diffX = e.changedTouches[0].clientX - viewSwipe.startX;
-            const threshold = window.innerWidth * 0.25; // 25% obrazovky k dokončení swipu
+            const threshold = window.innerWidth * 0.25; 
             
             viewSwipe.container.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
             viewSwipe.ghost.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
@@ -628,17 +639,21 @@
                     if(viewSwipe.ghost) viewSwipe.ghost.remove();
                     viewSwipe.container.style.transition = 'none';
                     viewSwipe.container.style.transform = 'translateX(0)';
+                    viewSwipe.container.parentNode.style.minHeight = '';
                     renderAll();
                 }, 300);
             } else {
                 viewSwipe.container.style.transform = `translateX(0px)`;
                 viewSwipe.ghost.style.transform = `translateX(0px)`;
-                setTimeout(() => { if(viewSwipe.ghost) viewSwipe.ghost.remove(); }, 300);
+                setTimeout(() => { 
+                    if(viewSwipe.ghost) viewSwipe.ghost.remove(); 
+                    viewSwipe.container.parentNode.style.minHeight = '';
+                }, 300);
             }
             viewSwipe.active = false; viewSwipe.startX = 0;
         });
 
-        // --- 1:1 SVAJP TRACKER PRO KALENDÁŘ ---
+        // --- 1:1 SVAJP TRACKER PRO KALENDÁŘ (S OPRAVOU VÝŠKY) ---
         let calSwipe = { active: false, startX: 0, startY: 0, container: null, ghost: null, targetVal: null, dir: 0 };
         
         document.getElementById('view-calendar').addEventListener('touchstart', e => { 
@@ -666,6 +681,9 @@
                     
                     fillGhostCalendar(calSwipe.ghost, calSwipe.targetVal);
                     calSwipe.container.parentNode.appendChild(calSwipe.ghost);
+
+                    const maxH = Math.max(calSwipe.container.offsetHeight, calSwipe.ghost.offsetHeight);
+                    calSwipe.container.parentNode.style.minHeight = maxH + 'px';
                     
                     calSwipe.container.style.transition = 'none';
                     calSwipe.ghost.style.transition = 'none';
@@ -696,12 +714,16 @@
                     if(calSwipe.ghost) calSwipe.ghost.remove();
                     calSwipe.container.style.transition = 'none';
                     calSwipe.container.style.transform = 'translateX(0)';
+                    calSwipe.container.parentNode.style.minHeight = '';
                     renderAll();
                 }, 300);
             } else {
                 calSwipe.container.style.transform = `translateX(0px)`;
                 calSwipe.ghost.style.transform = `translateX(0px)`;
-                setTimeout(() => { if(calSwipe.ghost) calSwipe.ghost.remove(); }, 300);
+                setTimeout(() => { 
+                    if(calSwipe.ghost) calSwipe.ghost.remove(); 
+                    calSwipe.container.parentNode.style.minHeight = '';
+                }, 300);
             }
             calSwipe.active = false; calSwipe.startX = 0;
         });
