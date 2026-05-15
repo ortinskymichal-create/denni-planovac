@@ -22,6 +22,7 @@
         .view { display: none; min-height: calc(100vh - 150px); }
         .view.active { display: block; }
 
+        /* HORIZONTÁLNÍ NAVIGACE */
         .days-nav { display: flex; overflow-x: auto; background: var(--card-bg); padding: 15px 10px; box-shadow: var(--shadow); position: sticky; top: 0; z-index: 10; scrollbar-width: none; align-items: center; }
         .days-nav::-webkit-scrollbar { display: none; }
         .day-tab { flex: 0 0 auto; padding: 10px 18px; margin-right: 10px; border-radius: 20px; background: #eee; color: #666; font-weight: bold; text-decoration: none; text-align: center; border: 2px solid transparent; transition: background-color 0.2s, color 0.2s; }
@@ -29,12 +30,14 @@
         .day-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
         .icon-btn { font-size: 1.5rem; background: transparent; border: none; padding: 0 10px; cursor: pointer; color: var(--primary); }
         
+        /* DECENTNÍ TUŽKA PRO EDITACI A DRAG HANDLE */
         .edit-btn { color: #aaa; background: transparent; border: none; padding: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .task-card.completed .edit-btn { color: #fff; opacity: 0.7; }
         .drag-handle { color: #ccc; padding-right: 15px; font-size: 1.5rem; cursor: grab; touch-action: none; display: flex; align-items: center; justify-content: center; }
         .task-card.completed .drag-handle { color: #fff; opacity: 0.5; cursor: default; pointer-events: none; }
 
-        .task-container { padding: 20px 15px; display: flex; flex-direction: column; gap: 15px; min-height: 60vh; position: relative; }
+        /* KARTY ÚKOLŮ */
+        .task-container { padding: 20px 15px; display: flex; flex-direction: column; gap: 15px; min-height: 50vh; position: relative; }
         .task-card {
             background: var(--card-bg); border-radius: 15px; padding: 10px 10px 10px 15px;
             box-shadow: var(--shadow); font-weight: 600; font-size: 1.1rem;
@@ -46,13 +49,30 @@
         .task-text { flex: 1; margin-right: 10px; pointer-events: none; }
         .task-card.sortable-ghost { opacity: 0.4; } 
 
-        .add-btn-container { padding: 0 15px; margin-top: 10px; }
-        .add-btn { width: 100%; padding: 15px; border: 2px dashed var(--primary); background: transparent; color: var(--primary); border-radius: 15px; font-size: 1.2rem; font-weight: bold; cursor: pointer; }
+        /* NOVÉ: TLAČÍTKO PŘIDAT (KOLEČKO) */
+        .add-btn-container { padding: 20px; display: flex; justify-content: center; align-items: center; margin-bottom: 20px; }
+        .add-btn { 
+            width: 65px; height: 65px; 
+            border: 2px dashed var(--primary); 
+            background: transparent; 
+            color: var(--primary); 
+            border-radius: 50%; 
+            font-size: 2.5rem; 
+            font-weight: 300; 
+            cursor: pointer; 
+            display: flex; justify-content: center; align-items: center; 
+            padding: 0; 
+            box-shadow: 0 4px 10px rgba(41, 128, 185, 0.1);
+            transition: transform 0.1s;
+        }
+        .add-btn:active { transform: scale(0.95); }
+
         .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card-bg); display: flex; justify-content: space-around; padding: 12px 0; box-shadow: 0 -3px 15px rgba(0,0,0,0.08); z-index: 100; }
         .nav-item { color: #aaa; text-decoration: none; font-size: 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 4px; }
         .nav-item.active { color: var(--primary); font-weight: bold; }
         .nav-item span { font-size: 1.4rem; }
 
+        /* KALENDÁŘ */
         .calendar-header { display: flex; justify-content: space-between; align-items: center; padding: 15px; font-size: 1.2rem; font-weight: bold; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; padding: 10px; text-align: center; position: relative; }
         .cal-day-name { font-weight: bold; color: #888; font-size: 0.9rem; padding-bottom: 10px; }
@@ -62,9 +82,14 @@
         .cal-day.selected { background: var(--primary); color: white; border-color: var(--primary); }
         .task-dot { height: 6px; width: 6px; background-color: var(--dot-color); border-radius: 50%; position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); }
 
-        .agenda-day-header { font-size: 1.1rem; font-weight: bold; color: var(--primary); margin: 20px 15px 10px 15px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        /* NOVÉ: ROZVRŽENÍ AGENDA (ÚKOLY) */
+        .agenda-layout { padding: 20px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 40px; }
+        .agenda-day-header { font-size: 1.1rem; font-weight: bold; color: var(--primary); margin: 15px 0 0 0; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        .agenda-layout .agenda-day-header:first-child { margin-top: 0; }
+        
         .trash-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 15px 5px 15px; }
 
+        /* DIALOGY */
         dialog { margin: auto; border: none; border-radius: 20px; padding: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); width: 95%; max-width: 450px; }
         dialog::backdrop { background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); }
         .dialog-content input { width: 100%; padding: 15px; margin: 15px 0; border: 2px solid #eee; border-radius: 10px; font-size: 1.1rem; outline: none; }
@@ -74,6 +99,7 @@
         .btn-text { background: transparent; color: #888; }
         .btn-danger { background: transparent; border: 1px solid var(--dot-color); color: var(--dot-color); padding: 8px 15px; }
 
+        /* ANIMACE PRO PLYNULÉ PŘECHODY DNŮ A MĚSÍCŮ */
         .anim-container { position: relative; overflow: hidden; width: 100%; }
         .slide-element { transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1); width: 100%; }
         .slide-clone { position: absolute; top: 0; left: 0; pointer-events: none; }
@@ -86,7 +112,7 @@
         <div class="anim-container">
             <main class="task-container slide-element" id="taskContainer"></main>
         </div>
-        <div class="add-btn-container"><button class="add-btn" id="openAddDialogBtn">+ Přidat úkol</button></div>
+        <div class="add-btn-container"><button class="add-btn" id="openAddDialogBtn">+</button></div>
     </div>
 
     <div id="view-calendar" class="view">
@@ -99,7 +125,7 @@
     </div>
 
     <div id="view-tasks" class="view">
-        <div id="agendaContainer" style="padding-bottom: 20px;"></div>
+        <div id="agendaContainer" class="agenda-layout"></div>
     </div>
 
     <div id="view-trash" class="view">
@@ -329,6 +355,9 @@
                 handle.className = 'drag-handle';
                 handle.innerText = '≡';
                 el.appendChild(handle);
+            } else {
+                // Prostornější padding pro sekci Úkoly, kde nejsou tlačítka
+                el.style.padding = '15px 20px';
             }
             
             const textSpan = document.createElement('span'); textSpan.className = 'task-text'; textSpan.innerText = task.text; el.appendChild(textSpan);
@@ -408,8 +437,7 @@
                         const isCompleting = !task.completedTimecode;
                         const newTC = isCompleting ? getWeekTimecode() : null;
                         
-                        // OKAMŽITÁ AKTUALIZACE STAVU V PAMĚTI
-                        task.completedTimecode = newTC;
+                        task.completedTimecode = newTC; // Update v paměti hned
                         needsReorder = true; 
                         
                         if (isCompleting) {
@@ -488,7 +516,7 @@
                     else { header.innerText = formatCzechDate(task.assignedDate); }
                     container.appendChild(header); lastDate = task.assignedDate;
                 }
-                renderTaskCard(task, container, false); // Vykreslení s long-pressem, bez dragu a tužky
+                renderTaskCard(task, container, false);
             });
         }
 
@@ -520,8 +548,7 @@
         };
 
         function openMoveDialog(taskId, taskDate) {
-            selectedTaskIdForMove = taskId; 
-            moveCalDate = new Date(taskDate || currentDate); 
+            selectedTaskIdForMove = taskId; moveCalDate = new Date(taskDate || currentDate); 
             document.getElementById('moveTaskDialog').showModal(); renderAll(); 
         }
         document.getElementById('closeMoveDialogBtn').onclick = () => document.getElementById('moveTaskDialog').close();
