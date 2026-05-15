@@ -8,7 +8,6 @@
     <meta name="theme-color" content="#2980b9">
     <meta name="apple-mobile-web-app-capable" content="yes">
     
-    <!-- Knihovna pro plynulé Drag & Drop řazení úkolů -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
     <style>
@@ -48,7 +47,7 @@
         }
         .task-card.completed { background-color: var(--success); color: white; box-shadow: none; }
         .task-text { flex: 1; margin-right: 10px; pointer-events: none; }
-        .task-card.sortable-ghost { opacity: 0.4; } /* Efekt při tahání úkolu */
+        .task-card.sortable-ghost { opacity: 0.4; } 
 
         /* TLAČÍTKA A MENU */
         .add-btn-container { padding: 0 15px; margin-top: 10px; }
@@ -70,6 +69,7 @@
 
         /* AGENDA A KOŠ */
         .agenda-day-header { font-size: 1.1rem; font-weight: bold; color: var(--primary); margin: 20px 15px 10px 15px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        .trash-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 15px 5px 15px; }
 
         /* DIALOGY */
         dialog { margin: auto; border: none; border-radius: 20px; padding: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); width: 95%; max-width: 450px; }
@@ -79,6 +79,7 @@
         .btn { padding: 10px 20px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; }
         .btn-primary { background: var(--primary); color: white; }
         .btn-text { background: transparent; color: #888; }
+        .btn-danger { background: transparent; border: 1px solid var(--dot-color); color: var(--dot-color); padding: 8px 15px; }
 
         /* ANIMACE PRO PLYNULÉ PŘECHODY DNŮ A MĚSÍCŮ */
         .anim-container { position: relative; overflow: hidden; width: 100%; }
@@ -110,7 +111,10 @@
     </div>
 
     <div id="view-trash" class="view">
-        <h2 style="padding: 20px 15px; color: var(--dot-color);">Koš</h2>
+        <div class="trash-header">
+            <h2 style="color: var(--dot-color);">Koš</h2>
+            <button class="btn btn-danger" id="emptyTrashBtn" style="display: none;">Vysypat koš 🗑️</button>
+        </div>
         <main class="task-container" id="trashContainer" style="min-height: auto;"></main>
     </div>
 
@@ -121,12 +125,10 @@
         <a href="#" class="nav-item" data-target="view-trash"><span>🗑️</span>Koš</a>
     </nav>
 
-    <!-- Dialog: PŘIDAT ÚKOL -->
     <dialog id="addTaskDialog">
         <div class="dialog-content"><h2 style="color: var(--primary)">Nový úkol</h2><input type="text" id="newTaskInput" placeholder="např. Vyluxovat 🧹" autocomplete="off"><div class="dialog-actions"><button class="btn btn-text" id="closeAddDialogBtn">Zrušit</button><button class="btn btn-primary" id="saveTaskBtn">Uložit</button></div></div>
     </dialog>
 
-    <!-- Dialog: UPRAVIT ÚKOL (Nově i s košem) -->
     <dialog id="editTaskDialog">
         <div class="dialog-content">
             <h2 style="color: var(--primary)">Upravit úkol</h2>
@@ -141,14 +143,13 @@
         </div>
     </dialog>
 
-    <!-- Dialog: PŘESUN (LONG PRESS) -->
     <dialog id="moveTaskDialog">
         <div class="dialog-content" style="padding: 10px;"><h3 style="text-align:center; color: var(--primary); margin-bottom: 10px;">Přesunout na:</h3><div class="calendar-header" style="padding: 5px;"><button class="icon-btn" id="movePrevMonth">◀</button><span id="moveMonthYear" style="font-size: 1rem;"></span><button class="icon-btn" id="moveNextMonth">▶</button></div><div class="calendar-grid" id="moveCalendarGrid" style="gap: 2px;"></div><div class="dialog-actions"><button class="btn btn-text" id="closeMoveDialogBtn">Zavřít</button></div></div>
     </dialog>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
         
         const firebaseConfig = {
             apiKey: "AIzaSyDIrjTWwYJbKLH98skULApKB1LpdKSwlYw",
@@ -173,6 +174,7 @@
         let moveCalDate = new Date(); 
         
         let isAnimating = false; 
+        let needsReorder = false; // Flag pro zpožděné řazení
 
         function getWeekTimecode() {
             const d = new Date(); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
@@ -187,6 +189,12 @@
             document.getElementById(viewId).classList.add('active');
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             document.querySelector(`.nav-item[data-target="${viewId}"]`).classList.add('active');
+            
+            // Při změně pohledu aplikujeme odložené řazení (aby propadly hotové úkoly)
+            if (needsReorder) {
+                needsReorder = false;
+                renderAll();
+            }
         }
 
         function animateTransition(container, direction, updateStateFunc) {
@@ -223,13 +231,11 @@
             });
         }
 
-        // Inicializace SortableJS pro ruční řazení
         new Sortable(document.getElementById('taskContainer'), {
-            handle: '.drag-handle', // Můžeš tahat jen za ikonku ≡
+            handle: '.drag-handle',
             animation: 150,
             onEnd: function (evt) {
                 const items = evt.to.children;
-                // Uloží novou pozici (order) pro všechny prvky
                 for (let i = 0; i < items.length; i++) {
                     const id = items[i].dataset.id;
                     if (id) updateDoc(doc(db, "tasks", id), { order: i });
@@ -239,16 +245,17 @@
 
         onSnapshot(collection(db, "tasks"), (snapshot) => {
             allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            if (!isAnimating) renderAll(); 
+            if (!isAnimating && !needsReorder) renderAll(); // Nepřekresluj ihned, pokud čekáme na zpožděné řazení
         });
 
         function renderAll() {
             renderDaysNav();
             renderDailyPlan();
-            renderTrash(); // Vykreslí koš
+            renderTrash(); 
             renderCalendar(mainCalDate, 'mainCalendarGrid', 'calMonthYear', (d) => {
                 currentDate = d; navCenterDateStr = d; 
                 document.getElementById('daysNav').dataset.initialized = ""; 
+                needsReorder = false; // Vynutí seřazení při překliknutí kalendáře
                 switchView('view-plan'); renderAll();
             });
             if(document.getElementById('moveTaskDialog').open) {
@@ -274,9 +281,13 @@
                 
                 const a = document.createElement('a'); a.href = "#"; a.className = `day-tab ${dateStr === currentDate ? 'active' : ''} ${dateStr === realTodayStr ? 'today' : ''}`;
                 a.innerHTML = `<div>${dayName}</div><div style="font-size:1.2rem">${d.getDate()}</div>`;
-                // Ukázat tečku jen pokud úkol není v koši
                 if(allTasks.some(t => t.assignedDate === dateStr && !t.deleted)) a.innerHTML += `<div class="task-dot" style="bottom: 2px;"></div>`;
-                a.onclick = (e) => { e.preventDefault(); currentDate = dateStr; renderAll(); };
+                a.onclick = (e) => { 
+                    e.preventDefault(); 
+                    currentDate = dateStr; 
+                    needsReorder = false; // Vynutí přeřazení při změně dne přes lištu
+                    renderAll(); 
+                };
                 nav.appendChild(a);
             }
 
@@ -294,12 +305,13 @@
 
         function renderDailyPlan() {
             const container = document.getElementById('taskContainer');
+            
+            // Zachytíme existující DOM elementy, abychom zamezili problikávání, pokud je to možné
+            const existingCards = Array.from(container.children);
             container.innerHTML = '';
             
-            // Vyfiltruje úkoly pro dnešek, které NEJSOU smazané
             let dayTasks = allTasks.filter(t => t.assignedDate === currentDate && !t.deleted);
             
-            // AUTOMATICKÉ ŘAZENÍ: Hotové dospod, jinak podle ručního řazení (order)
             dayTasks.sort((a, b) => {
                 if (a.completedTimecode && !b.completedTimecode) return 1;
                 if (!a.completedTimecode && b.completedTimecode) return -1;
@@ -316,9 +328,8 @@
         function renderTaskCard(task, container) {
             const el = document.createElement('div');
             el.className = `task-card ${task.completedTimecode ? 'completed' : ''}`;
-            el.dataset.id = task.id; // Důležité pro řazení Drag & Drop
+            el.dataset.id = task.id; 
             
-            // Ikonka pro přesouvání (Drag handle)
             const handle = document.createElement('div');
             handle.className = 'drag-handle';
             handle.innerText = '≡';
@@ -357,7 +368,6 @@
                 if (!isDragging) return;
                 currentX = e.touches[0].clientX - startX;
                 
-                // ZRUŠENÍ MOŽNOSTI SVAJPOVÁNÍ PRO HOTOVÉ ÚKOLY
                 if (task.completedTimecode) return; 
 
                 if (Math.abs(currentX) > 10) clearTimeout(longPressTimer);
@@ -392,7 +402,21 @@
                 } else {
                     el.style.transform = 'translate(0,0)'; el.style.opacity = 1;
                     if (Math.abs(currentX) < 5) { 
-                        const newTC = task.completedTimecode ? null : getWeekTimecode();
+                        const isCompleting = !task.completedTimecode;
+                        const newTC = isCompleting ? getWeekTimecode() : null;
+                        
+                        // Zpožděné řazení: nastavíme flag, aby se nezavolal ihned renderAll
+                        needsReorder = true; 
+                        
+                        // Vizuální aktualizace okamžitě bez překreslení seznamu
+                        if (isCompleting) {
+                            el.classList.add('completed');
+                            el.querySelector('.drag-handle').style.pointerEvents = 'none';
+                        } else {
+                            el.classList.remove('completed');
+                            el.querySelector('.drag-handle').style.pointerEvents = 'auto';
+                        }
+                        
                         await updateDoc(doc(db, "tasks", task.id), { completedTimecode: newTC });
                     }
                 }
@@ -404,13 +428,18 @@
         // --- ZOBRAZENÍ KOŠE ---
         function renderTrash() {
             const container = document.getElementById('trashContainer');
+            const emptyBtn = document.getElementById('emptyTrashBtn');
             container.innerHTML = '';
             
             const trashedTasks = allTasks.filter(t => t.deleted === true);
+            
             if(trashedTasks.length === 0) {
                 container.innerHTML = '<div style="text-align:center; color:#999; margin-top:40px;">Koš je prázdný.</div>';
+                emptyBtn.style.display = 'none';
                 return;
             }
+            
+            emptyBtn.style.display = 'block'; // Zobrazit tlačítko "Vysypat koš"
             
             trashedTasks.forEach(task => {
                 const el = document.createElement('div');
@@ -428,6 +457,16 @@
                 container.appendChild(el);
             });
         }
+
+        // --- FUNKCE VYSYPAT KOŠ ---
+        document.getElementById('emptyTrashBtn').onclick = async () => {
+            const trashedTasks = allTasks.filter(t => t.deleted === true);
+            if(confirm('Opravdu chcete trvale smazat všechny úkoly v koši? Tuto akci nelze vrátit.')) {
+                for(let task of trashedTasks) {
+                    await deleteDoc(doc(db, "tasks", task.id));
+                }
+            }
+        };
 
         function renderCalendar(dateObj, gridId, titleId, onDayClick) {
             const year = dateObj.getFullYear(); const month = dateObj.getMonth();
@@ -477,27 +516,34 @@
         document.getElementById('moveNextMonth').onclick = () => { moveCalDate.setMonth(moveCalDate.getMonth() + 1); renderAll(); };
 
         const addDialog = document.getElementById('addTaskDialog'); const input = document.getElementById('newTaskInput');
-        document.getElementById('openAddDialogBtn').onclick = () => addDialog.showModal();
+        document.getElementById('openAddDialogBtn').onclick = () => {
+            input.value = ''; // Vyčištění před otevřením
+            addDialog.showModal();
+        };
         document.getElementById('closeAddDialogBtn').onclick = () => addDialog.close();
         document.getElementById('saveTaskBtn').onclick = async () => {
             const val = input.value.trim();
-            if (val) { await addDoc(collection(db, "tasks"), { text: val, assignedDate: currentDate, completedTimecode: null, createdAt: Date.now(), order: Date.now(), deleted: false }); input.value = ''; addDialog.close(); }
+            if (val) { 
+                addDialog.close(); // Okamžité zavření
+                await addDoc(collection(db, "tasks"), { text: val, assignedDate: currentDate, completedTimecode: null, createdAt: Date.now(), order: Date.now(), deleted: false }); 
+            }
         };
 
         const editDialog = document.getElementById('editTaskDialog');
         document.getElementById('closeEditDialogBtn').onclick = () => editDialog.close();
         
-        // Uložení upraveného textu
         document.getElementById('saveEditTaskBtn').onclick = async () => {
             const val = document.getElementById('editTaskInput').value.trim();
-            if (val && selectedTaskIdForEdit) { await updateDoc(doc(db, "tasks", selectedTaskIdForEdit), { text: val }); editDialog.close(); }
+            if (val && selectedTaskIdForEdit) { 
+                editDialog.close(); // Okamžité zavření
+                await updateDoc(doc(db, "tasks", selectedTaskIdForEdit), { text: val }); 
+            }
         };
 
-        // Skryté smazání (přesun do koše)
         document.getElementById('deleteTaskBtn').onclick = async () => {
             if (selectedTaskIdForEdit) {
-                await updateDoc(doc(db, "tasks", selectedTaskIdForEdit), { deleted: true }); 
                 editDialog.close();
+                await updateDoc(doc(db, "tasks", selectedTaskIdForEdit), { deleted: true }); 
             }
         };
 
@@ -531,6 +577,7 @@
                     currentDate = current.toISOString().split('T')[0];
                     navCenterDateStr = currentDate;
                     document.getElementById('daysNav').dataset.initialized = "";
+                    needsReorder = false; // Vynutí seřazení při přepnutí dne svajpem
                     renderAll();
                 });
             }
