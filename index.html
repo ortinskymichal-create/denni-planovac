@@ -34,8 +34,8 @@
         .drag-handle { color: #ccc; padding-right: 15px; font-size: 1.5rem; cursor: grab; touch-action: none; display: flex; align-items: center; justify-content: center; }
         .task-card.completed .drag-handle { color: #fff; opacity: 0.5; cursor: default; pointer-events: none; }
 
-        /* KARTY ÚKOLŮ - Zvětšený extra prostor dole pro scrollování nad tlačítkem */
-        .task-container { padding: 20px 15px 140px 15px; display: flex; flex-direction: column; gap: 15px; min-height: 60vh; position: relative; }
+        /* KARTY ÚKOLŮ - Zvětšený padding pro snadné odscrollování úplně posledního úkolu nad mlhu */
+        .task-container { padding: 20px 15px 160px 15px; display: flex; flex-direction: column; gap: 15px; min-height: 60vh; position: relative; }
         .task-card {
             background: var(--card-bg); border-radius: 15px; padding: 10px 10px 10px 15px;
             box-shadow: var(--shadow); font-weight: 600; font-size: 1.1rem;
@@ -47,17 +47,18 @@
         .task-text { flex: 1; margin-right: 10px; pointer-events: none; }
         .task-card.sortable-ghost { opacity: 0.4; } 
 
-        /* PLOVOUCÍ TLAČÍTKO (FAB) S EFEKTEM MIZENÍ (FADE-OUT) */
+        /* PLOVOUCÍ TLAČÍTKO + MLHA (Nyní zachytává všechny dotyky a blokuje úkoly) */
         .add-btn-container { 
             position: fixed; 
-            bottom: 60px; /* Sedí těsně nad spodním menu */
+            bottom: 60px; 
             left: 0; right: 0; 
-            height: 140px; /* Výška "mlhy", která skryje úkoly */
-            /* Z průhledné barvy do plné barvy pozadí (rgba 244, 247, 246 je kód pro var(--bg-color)) */
-            background: linear-gradient(to bottom, rgba(244,247,246,0) 0%, rgba(244,247,246,1) 40%, rgba(244,247,246,1) 100%);
+            height: 120px; 
+            background: linear-gradient(to bottom, rgba(244,247,246,0) 0%, rgba(244,247,246,1) 60%, rgba(244,247,246,1) 100%);
             display: flex; justify-content: center; align-items: flex-end; 
-            padding-bottom: 25px; /* Odstup samotného kolečka zespodu */
-            pointer-events: none; /* Propustí dotyky na pozadí -> fungují gesta přehození dne! */
+            padding-bottom: 20px; 
+            /* ZÁSADNÍ ZMĚNA: auto znamená, že se oblast stává "sklem", pod kterým nejde s úkoly nic dělat,
+               ale jelikož to není úkol, gesta se rovnou pošlou do kódu pro přehození dne! */
+            pointer-events: auto; 
             z-index: 50; 
         }
         .add-btn { 
@@ -73,7 +74,6 @@
             padding: 0; 
             box-shadow: 0 5px 15px rgba(41, 128, 185, 0.2);
             transition: transform 0.1s;
-            pointer-events: auto; /* Samotné tlačítko je klikatelné */
         }
         .add-btn:active { transform: scale(0.95); }
 
