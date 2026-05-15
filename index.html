@@ -34,8 +34,8 @@
         .drag-handle { color: #ccc; padding-right: 15px; font-size: 1.5rem; cursor: grab; touch-action: none; display: flex; align-items: center; justify-content: center; }
         .task-card.completed .drag-handle { color: #fff; opacity: 0.5; cursor: default; pointer-events: none; }
 
-        /* KARTY ÚKOLŮ - Přidán extra prostor dole (120px) pro scrollování nad tlačítkem */
-        .task-container { padding: 20px 15px 120px 15px; display: flex; flex-direction: column; gap: 15px; min-height: 60vh; position: relative; }
+        /* KARTY ÚKOLŮ - Zvětšený extra prostor dole pro scrollování nad tlačítkem */
+        .task-container { padding: 20px 15px 140px 15px; display: flex; flex-direction: column; gap: 15px; min-height: 60vh; position: relative; }
         .task-card {
             background: var(--card-bg); border-radius: 15px; padding: 10px 10px 10px 15px;
             box-shadow: var(--shadow); font-weight: 600; font-size: 1.1rem;
@@ -47,20 +47,23 @@
         .task-text { flex: 1; margin-right: 10px; pointer-events: none; }
         .task-card.sortable-ghost { opacity: 0.4; } 
 
-        /* PLOVOUCÍ TLAČÍTKO (FAB) - Fixní pozice dole */
+        /* PLOVOUCÍ TLAČÍTKO (FAB) S EFEKTEM MIZENÍ (FADE-OUT) */
         .add-btn-container { 
             position: fixed; 
-            bottom: 85px; /* Těsně nad spodním menu */
+            bottom: 60px; /* Sedí těsně nad spodním menu */
             left: 0; right: 0; 
-            display: flex; justify-content: center; align-items: center; 
-            padding: 10px; 
+            height: 140px; /* Výška "mlhy", která skryje úkoly */
+            /* Z průhledné barvy do plné barvy pozadí (rgba 244, 247, 246 je kód pro var(--bg-color)) */
+            background: linear-gradient(to bottom, rgba(244,247,246,0) 0%, rgba(244,247,246,1) 40%, rgba(244,247,246,1) 100%);
+            display: flex; justify-content: center; align-items: flex-end; 
+            padding-bottom: 25px; /* Odstup samotného kolečka zespodu */
             pointer-events: none; /* Propustí dotyky na pozadí -> fungují gesta přehození dne! */
             z-index: 50; 
         }
         .add-btn { 
             width: 65px; height: 65px; 
             border: 2px dashed var(--primary); 
-            background: var(--card-bg); /* Neprůhledné, aby úkoly neprosvítaly textem */
+            background: var(--card-bg); 
             color: var(--primary); 
             border-radius: 50%; 
             font-size: 2.5rem; 
